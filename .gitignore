@@ -1,0 +1,11 @@
+/gen
+/tasks
+/server-*.log
+/target
+.claude
+.codex
+.vscode
+
+# Logs
+*.log
+debug.log

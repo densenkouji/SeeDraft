@@ -1,0 +1,26 @@
+[package]
+name = "seedraft"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = { version = "0.8", features = ["multipart"] }
+directories = "5"
+foundry-local-sdk = { path = "../Foundry-Local/sdk/rust" }
+futures = "0.3"
+hound = "3.5"
+rusqlite = { version = "0.32", features = ["bundled"] }
+rfd = "0.15"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+symphonia = { version = "0.5", features = ["aac", "flac", "isomp4", "mp3", "ogg", "pcm", "vorbis", "wav"] }
+tokio = { version = "1", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+tauri = { version = "2", features = [] }
+uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(windows)'.dependencies]
+foundry-local-sdk = { path = "../Foundry-Local/sdk/rust", features = ["winml"] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
