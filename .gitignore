@@ -2,6 +2,10 @@
 /tasks
 /server-*.log
 /target
+/native/foundry-local/*
+!/native/foundry-local/win-x64/
+/native/foundry-local/win-x64/*
+!/native/foundry-local/win-x64/.gitkeep
 .claude
 .codex
 .vscode

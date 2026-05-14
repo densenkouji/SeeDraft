@@ -9,9 +9,11 @@
   "bundle": {
     "active": true,
     "targets": [
-      "nsis",
-      "msi"
+      "nsis"
     ],
+    "resources": {
+      "native/foundry-local/win-x64": "foundry-local"
+    },
     "icon": [
       "./res/icon.ico"
     ]

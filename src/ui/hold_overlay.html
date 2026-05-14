@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --edge: rgba(214, 218, 224, 0.58);
+      --edge-strong: rgba(244, 246, 248, 0.78);
+      --line: rgba(231, 233, 236, 0.86);
+      --line-soft: rgba(172, 176, 184, 0.36);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      pointer-events: none;
+      user-select: none;
+    }
+    body {
+      opacity: 0;
+      transform: scale(0.94);
+      transition: opacity 170ms ease, transform 190ms cubic-bezier(.2,.8,.2,1);
+    }
+    body.is-visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+    .shell {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      padding: 10px;
+    }
+    .panel {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border: 1px solid var(--edge);
+      border-radius: 14px;
+      background:
+        linear-gradient(135deg, rgba(21, 23, 27, 0.72), rgba(10, 11, 13, 0.46)),
+        radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.18), transparent 38%),
+        radial-gradient(circle at 86% 76%, rgba(158, 164, 172, 0.16), transparent 42%);
+      box-shadow:
+        0 0 18px rgba(235, 238, 242, 0.20),
+        inset 0 0 26px rgba(255, 255, 255, 0.11);
+      backdrop-filter: blur(9px) saturate(0.3);
+      opacity: 0.74;
+      overflow: hidden;
+      transition: opacity 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    }
+    body[data-mode="recording"] .panel {
+      border-color: var(--edge-strong);
+      box-shadow:
+        0 0 22px rgba(246, 247, 249, 0.24),
+        inset 0 0 30px rgba(255, 255, 255, 0.16);
+      opacity: 0.86;
+    }
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          rgba(255, 255, 255, 0.06) 0,
+          rgba(255, 255, 255, 0.06) 1px,
+          transparent 1px,
+          transparent 7px
+        );
+      mix-blend-mode: screen;
+      opacity: 0.26;
+    }
+    .panel::after {
+      content: "";
+      position: absolute;
+      top: -45%;
+      left: -25%;
+      width: 70%;
+      height: 190%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.20), transparent);
+      transform: rotate(16deg);
+      animation: sweep 2.8s linear infinite;
+    }
+    .hud {
+      position: absolute;
+      inset: 15px 16px;
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 13px;
+      align-items: center;
+      z-index: 2;
+    }
+    .orb {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      border: 1px solid rgba(234, 236, 240, 0.70);
+      position: relative;
+      box-shadow:
+        0 0 16px rgba(240, 242, 245, 0.22),
+        inset 0 0 18px rgba(255, 255, 255, 0.14);
+    }
+    .orb::before,
+    .orb::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      inset: 13px;
+      background: rgba(236, 238, 242, 0.88);
+      box-shadow: 0 0 15px rgba(236, 238, 242, 0.48);
+      animation: pulse 0.95s ease-in-out infinite alternate;
+    }
+    .orb::after {
+      inset: 5px;
+      background: transparent;
+      border: 1px dashed rgba(210, 214, 220, 0.56);
+      animation: spin 2.2s linear infinite;
+      box-shadow: none;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 58px;
+      filter: drop-shadow(0 0 8px rgba(238, 240, 243, 0.34));
+    }
+    .corner {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-color: rgba(236, 238, 242, 0.62);
+      opacity: 0.76;
+      z-index: 3;
+    }
+    .tl { top: 8px; left: 8px; border-top: 2px solid; border-left: 2px solid; }
+    .tr { top: 8px; right: 8px; border-top: 2px solid; border-right: 2px solid; }
+    .bl { bottom: 8px; left: 8px; border-bottom: 2px solid; border-left: 2px solid; }
+    .br { bottom: 8px; right: 8px; border-bottom: 2px solid; border-right: 2px solid; }
+    @keyframes sweep {
+      from { transform: translateX(-80%) rotate(16deg); }
+      to { transform: translateX(210%) rotate(16deg); }
+    }
+    @keyframes pulse {
+      from { transform: scale(0.74); opacity: 0.65; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="panel">
+      <span class="corner tl"></span>
+      <span class="corner tr"></span>
+      <span class="corner bl"></span>
+      <span class="corner br"></span>
+      <div class="hud">
+        <div class="orb" aria-hidden="true"></div>
+        <canvas id="wave" width="180" height="58" aria-hidden="true"></canvas>
+      </div>
+    </div>
+  </div>
+  <script>
+    const canvas = document.getElementById("wave");
+    const ctx = canvas.getContext("2d");
+    const bars = 34;
+    const HOLD_RECORD_INSERT_AT_CURSOR_KEY = "seedraft_hold_record_insert_at_cursor";
+    const HOLD_RECORD_OUTPUT_MODE_KEY = "seedraft_hold_record_output_mode";
+    const MICROPHONE_DEVICE_KEY = "seedraft_microphone_device_id";
+    const RECOGNITION_LANG_KEY = "seedraft_recognition_language";
+    const SPEECH_MODEL_STORAGE_KEY = "seedraft_speech_model";
+
+    const state = {
+      recorder: null,
+      chunks: [],
+      starting: false,
+      started: false,
+      stopping: false,
+      stopRequested: false,
+      processing: false,
+      stream: null
+    };
+    let audioContext = null;
+    let analyser = null;
+    let sourceNode = null;
+    let audioData = null;
+    let levels = Array.from({ length: bars }, () => 0.05);
+
+    const getTauriInvoke = () =>
+      window.__TAURI__?.core?.invoke || window.__TAURI__?.tauri?.invoke || null;
+
+    const getTauriListen = () => window.__TAURI__?.event?.listen || null;
+
+    const storageValue = (key) => {
+      try { return (localStorage.getItem(key) || "").trim(); } catch { return ""; }
+    };
+
+    const holdRecordOutputMode = () => {
+      const insert = storageValue(HOLD_RECORD_INSERT_AT_CURSOR_KEY);
+      if (insert) return insert === "true" ? "both" : "copy";
+      const legacyMode = storageValue(HOLD_RECORD_OUTPUT_MODE_KEY);
+      if (legacyMode) return legacyMode === "insert" || legacyMode === "both" ? "both" : "copy";
+      return "both";
+    };
+
+    const hideOverlayNow = () => {
+      document.body.style.transition = "none";
+      document.body.classList.remove("is-visible");
+      document.body.dataset.mode = "hidden";
+    };
+
+    const hideNativeOverlay = () => {
+      const invoke = getTauriInvoke();
+      if (!invoke) return;
+      invoke("hide_hold_recording_overlay").catch((error) => {
+        console.warn("hold overlay hide failed", error);
+      });
+    };
+
+    window.seedraftHoldOverlayShow = (mode = "preparing") => {
+      document.body.style.transition = "";
+      document.body.dataset.mode = mode;
+      document.body.classList.remove("is-visible");
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => document.body.classList.add("is-visible"));
+      });
+    };
+    window.seedraftHoldOverlayHide = hideOverlayNow;
+
+    const releaseMicStream = () => {
+      try { sourceNode?.disconnect?.(); } catch {}
+      sourceNode = null;
+      analyser = null;
+      audioData = null;
+      if (state.stream) {
+        state.stream.getTracks().forEach((track) => track.stop());
+      }
+      state.stream = null;
+    };
+
+    const buildAudioConstraints = () => {
+      const deviceId = storageValue(MICROPHONE_DEVICE_KEY);
+      return deviceId ? { deviceId: { exact: deviceId } } : true;
+    };
+
+    const getMicStream = async () => {
+      const constraints = buildAudioConstraints();
+      try {
+        return await navigator.mediaDevices.getUserMedia({ audio: constraints });
+      } catch (error) {
+        const canFallback = !!constraints?.deviceId?.exact && [
+          "NotFoundError",
+          "OverconstrainedError",
+          "ConstraintNotSatisfiedError",
+          "NotReadableError"
+        ].includes(error?.name);
+        if (!canFallback) throw error;
+        return await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+    };
+
+    const attachAnalyser = async (stream) => {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!audioContext) audioContext = new AudioCtx();
+      await audioContext.resume?.();
+      try { sourceNode?.disconnect?.(); } catch {}
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.72;
+      audioData = new Uint8Array(analyser.fftSize);
+      sourceNode = audioContext.createMediaStreamSource(stream);
+      sourceNode.connect(analyser);
+    };
+
+    const resizeCanvas = () => {
+      const scale = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const width = Math.max(1, Math.floor(rect.width * scale));
+      const height = Math.max(1, Math.floor(rect.height * scale));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      return { width, height, scale };
+    };
+
+    const draw = (time) => {
+      const { width, height, scale } = resizeCanvas();
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "rgba(230, 233, 237, 0.10)";
+      ctx.fillRect(0, height / 2 - Math.max(1, scale), width, Math.max(1, 2 * scale));
+
+      if (analyser && audioData) {
+        analyser.getByteTimeDomainData(audioData);
+      }
+      const step = width / bars;
+      const sampleSpan = audioData ? Math.max(1, Math.floor(audioData.length / bars)) : 1;
+      for (let i = 0; i < bars; i++) {
+        let level = 0.04;
+        if (audioData) {
+          let sum = 0;
+          const start = i * sampleSpan;
+          for (let j = 0; j < sampleSpan; j++) {
+            const sample = (audioData[start + j] || 128) - 128;
+            sum += sample * sample;
+          }
+          level = Math.min(1, Math.sqrt(sum / sampleSpan) / 54);
+        } else {
+          const phase = time * 0.004 + i * 0.58;
+          level = 0.04 + Math.abs(Math.sin(phase) * Math.cos(phase * 0.37)) * 0.16;
+        }
+        levels[i] = levels[i] * 0.68 + level * 0.32;
+        const h = Math.max(4 * scale, (8 + levels[i] * 44) * scale);
+        const x = i * step + 1.5 * scale;
+        const y = (height - h) / 2;
+        const gradient = ctx.createLinearGradient(0, y, 0, y + h);
+        gradient.addColorStop(0, "rgba(248, 249, 250, 0.86)");
+        gradient.addColorStop(0.5, "rgba(188, 193, 200, 0.90)");
+        gradient.addColorStop(1, "rgba(112, 117, 126, 0.74)");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(x, y, Math.max(2 * scale, step - 4 * scale), h);
+      }
+      requestAnimationFrame(draw);
+    };
+
+    const convertBlobToWav = async (blob) => {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) throw new Error("AudioContext is not available");
+
+      const arrayBuffer = await blob.arrayBuffer();
+      const decodeCtx = new AudioCtx();
+      const decoded = await new Promise((resolve, reject) => {
+        decodeCtx.decodeAudioData(
+          arrayBuffer.slice(0),
+          (buffer) => resolve(buffer),
+          (error) => reject(error || new Error("decodeAudioData failed"))
+        );
+      });
+
+      const sourceChannels = decoded.numberOfChannels;
+      const sourceLength = decoded.length;
+      const mono = new Float32Array(sourceLength);
+      for (let ch = 0; ch < sourceChannels; ch++) {
+        const data = decoded.getChannelData(ch);
+        for (let i = 0; i < sourceLength; i++) mono[i] += data[i];
+      }
+      if (sourceChannels > 1) {
+        for (let i = 0; i < sourceLength; i++) mono[i] /= sourceChannels;
+      }
+
+      const targetRate = 16000;
+      const sourceRate = decoded.sampleRate;
+      let pcm;
+      if (sourceRate === targetRate) {
+        pcm = mono;
+      } else {
+        const ratio = sourceRate / targetRate;
+        const outLength = Math.floor(sourceLength / ratio);
+        pcm = new Float32Array(outLength);
+        for (let i = 0; i < outLength; i++) {
+          const srcPos = i * ratio;
+          const idx = Math.floor(srcPos);
+          const frac = srcPos - idx;
+          const a = mono[idx] || 0;
+          const b = mono[Math.min(idx + 1, sourceLength - 1)] || 0;
+          pcm[i] = a + (b - a) * frac;
+        }
+      }
+
+      decodeCtx.close?.();
+
+      const numSamples = pcm.length;
+      const bytesPerSample = 2;
+      const dataSize = numSamples * bytesPerSample;
+      const buffer = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(buffer);
+      const writeString = (offset, value) => {
+        for (let i = 0; i < value.length; i++) {
+          view.setUint8(offset + i, value.charCodeAt(i));
+        }
+      };
+
+      writeString(0, "RIFF");
+      view.setUint32(4, 36 + dataSize, true);
+      writeString(8, "WAVE");
+      writeString(12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, targetRate, true);
+      view.setUint32(28, targetRate * bytesPerSample, true);
+      view.setUint16(32, bytesPerSample, true);
+      view.setUint16(34, 16, true);
+      writeString(36, "data");
+      view.setUint32(40, dataSize, true);
+
+      let offset = 44;
+      for (let i = 0; i < numSamples; i++) {
+        const sample = Math.max(-1, Math.min(1, pcm[i]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        offset += 2;
+      }
+
+      return new Blob([buffer], { type: "audio/wav" });
+    };
+
+    const transcribeHoldRecording = async (rawBlob, mimeType) => {
+      let audioBlob = rawBlob;
+      let fileName = "hold-recording.webm";
+      try {
+        audioBlob = await convertBlobToWav(rawBlob);
+        fileName = "hold-recording.wav";
+      } catch (error) {
+        console.warn("hold recording WAV conversion failed", error);
+      }
+
+      const formData = new FormData();
+      const language = storageValue(RECOGNITION_LANG_KEY);
+      const speechModel = storageValue(SPEECH_MODEL_STORAGE_KEY);
+      if (language) formData.append("language", language);
+      if (speechModel) formData.append("speech_model", speechModel);
+      formData.append("save_as_note", "false");
+      formData.append("audio", audioBlob, fileName);
+
+      const response = await fetch("/api/transcribe", { method: "POST", body: formData });
+      const rawBody = await response.text();
+      let payload = {};
+      try {
+        payload = rawBody ? JSON.parse(rawBody) : {};
+      } catch {
+        payload = { error: rawBody };
+      }
+      if (!response.ok) throw new Error(payload.error || "transcription failed");
+      return payload.text || "";
+    };
+
+    const completeHoldRecording = async (text) => {
+      const trimmed = (text || "").trim();
+      if (!trimmed) return;
+      const mode = holdRecordOutputMode();
+      const invoke = getTauriInvoke();
+      if (invoke) {
+        await invoke("complete_hold_recording", { input: { text: trimmed, mode } });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(trimmed);
+      }
+    };
+
+    const resetRecordingState = () => {
+      state.recorder = null;
+      state.chunks = [];
+      state.starting = false;
+      state.started = false;
+      state.stopping = false;
+      state.stopRequested = false;
+    };
+
+    const handleRecordingStop = async (recorder) => {
+      const chunks = state.chunks;
+      const mimeType = recorder?.mimeType || "audio/webm";
+      resetRecordingState();
+      releaseMicStream();
+      state.processing = true;
+
+      try {
+        const rawBlob = new Blob(chunks, { type: mimeType });
+        if (!rawBlob.size) return;
+        const text = await transcribeHoldRecording(rawBlob, mimeType);
+        await completeHoldRecording(text);
+      } catch (error) {
+        console.error("hold recording failed", error);
+      } finally {
+        state.processing = false;
+        hideNativeOverlay();
+      }
+    };
+
+    const startHoldRecording = async () => {
+      if (state.starting || state.started || state.processing) return;
+      window.seedraftHoldOverlayShow("preparing");
+      state.starting = true;
+      state.stopping = false;
+      state.stopRequested = false;
+      try {
+        if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+          throw new Error("microphone recording is not available");
+        }
+        const stream = await getMicStream();
+        state.stream = stream;
+        await attachAnalyser(stream);
+
+        const recorder = new MediaRecorder(stream);
+        state.recorder = recorder;
+        state.chunks = [];
+        recorder.addEventListener("dataavailable", (event) => {
+          if (event.data?.size > 0) state.chunks.push(event.data);
+        });
+        recorder.addEventListener("stop", () => handleRecordingStop(recorder), { once: true });
+        recorder.start();
+
+        state.starting = false;
+        state.started = true;
+        window.seedraftHoldOverlayShow("recording");
+        if (state.stopRequested) stopHoldRecording();
+      } catch (error) {
+        console.error("hold recording start failed", error);
+        resetRecordingState();
+        releaseMicStream();
+        hideOverlayNow();
+        hideNativeOverlay();
+      }
+    };
+
+    const stopHoldRecording = () => {
+      state.stopRequested = true;
+      const recorder = state.recorder;
+      if (state.stopping) return;
+      if (recorder?.state === "recording") {
+        state.stopping = true;
+        try { recorder.requestData?.(); } catch {}
+        recorder.stop();
+        hideOverlayNow();
+      } else if (recorder) {
+        hideOverlayNow();
+      } else if (!state.starting) {
+        resetRecordingState();
+        releaseMicStream();
+        hideOverlayNow();
+        hideNativeOverlay();
+      }
+    };
+
+    window.seedraftHoldOverlayShortcutPress = startHoldRecording;
+    window.seedraftHoldOverlayShortcutRelease = stopHoldRecording;
+    if (window.__seedraftPendingHoldPress) {
+      window.__seedraftPendingHoldPress = false;
+      startHoldRecording();
+    }
+    if (window.__seedraftPendingHoldRelease) {
+      window.__seedraftPendingHoldRelease = false;
+      stopHoldRecording();
+    }
+
+    const setupGlobalShortcutListener = async () => {
+      const listen = getTauriListen();
+      if (!listen) return;
+      try {
+        await listen("seedraft:global-shortcut", (event) => {
+          const payload = event?.payload;
+          if (payload?.action !== "record.hold") return;
+          if (payload.state === "pressed") startHoldRecording();
+          if (payload.state === "released") stopHoldRecording();
+        });
+      } catch (error) {
+        console.warn("hold overlay shortcut listener failed", error);
+      }
+    };
+
+    setupGlobalShortcutListener();
+    requestAnimationFrame(draw);
+  </script>
+</body>
+</html>

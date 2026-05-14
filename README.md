@@ -1,7 +1,10 @@
-# SeeDraft
+
+<center><img src="images/SeeDraft-icon_128x128.png" alt="logo"></center>
 
 > Local-first, privacy-friendly voice-to-text for Windows.
 > Record, transcribe, refine, translate, connect, and draft with on-device AI.
+
+# SeeDraft
 
 **Languages:** **English** · [日本語](README.ja.md)
 
@@ -103,8 +106,10 @@ No API keys are required for the app itself. Model execution is local through th
 - Windows 11 x64
 - Rust toolchain, edition 2024
 - Microsoft C++ Build Tools / MSVC
-- Foundry Local SDK checked out as a sibling directory at `../Foundry-Local/sdk/rust`
+- Foundry Local SDK checked out as a sibling directory at `../Foundry-Local/sdk/rust` for development and installer builds
 - Tauri CLI for installer builds
+
+Packaged installers include the Foundry Local native runtime DLLs staged from the SDK build output, so end-user PCs do not need a separate Foundry Local app or CLI installation.
 
 ## Getting Started
 
@@ -128,7 +133,7 @@ cargo tauri --version
 
 ```powershell
 git clone https://github.com/microsoft/Foundry-Local
-git clone <this-repository> SeeDraft
+git clone https://github.com/densenkouji/SeeDraft.git
 cd SeeDraft
 ```
 
@@ -161,6 +166,8 @@ cargo tauri build
 ```
 
 Installer artifacts are written under `target/release/bundle/`.
+During the build, SeeDraft stages the required Foundry Local native binaries into `native/foundry-local/win-x64` and bundles them as the Tauri `foundry-local` resource. The staged DLLs are ignored by Git.
+The default bundle target is the NSIS `.exe` installer.
 
 ## Usage Cheatsheet
 
