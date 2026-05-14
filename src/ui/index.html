@@ -836,6 +836,7 @@
                             "status.recordingLimit": "録音上限に到達",
                             "status.micUnavailable": "マイクを使用できません",
                             "status.copied": "コピー済み",
+                            "status.clipboardUnavailable": "クリップボードを使用できません",
                             "status.savedExport": "書き出し済み",
                             "status.translationCopied": "翻訳をコピー済み",
                             "status.translationExported": "翻訳を書き出し済み",
@@ -890,6 +891,7 @@
                             "settings.analyze.model": "使用するモデル",
                             "status.savedToHistory": "ノートに追加しました",
                             "status.savedLiveSession": "セッションを保存しました",
+                            "status.liveProjectCreated": "ライブ字幕セッションをプロジェクトに追加しました",
                             "status.emptyText": "テキストが空です",
                             "status.noProject": "プロジェクトが選択されていません",
                             "record.ready": "準備完了",
@@ -1188,6 +1190,9 @@
                             "live.emptyHint": "開始ボタンを押すと、話した内容がリアルタイムで字幕化されます。",
                             "live.chunkHint": "発話の区切りで文字起こしし、その後に翻訳します",
                             "live.noSessions": "保存されたセッションはありません",
+                            "live.createProject": "プロジェクト化",
+                            "live.createProjectFailed": "プロジェクト化に失敗しました",
+                            "live.translationNoteLabel": "翻訳",
                             "live.summary": "{count}件のセグメント / {duration}",
                             "live.startFailed": "ライブ字幕を開始できませんでした",
                             "live.micError": "マイクにアクセスできません",
@@ -1322,6 +1327,7 @@
                             "status.recordingLimit": "Recording limit reached",
                             "status.micUnavailable": "Microphone unavailable",
                             "status.copied": "Copied",
+                            "status.clipboardUnavailable": "Clipboard unavailable",
                             "status.savedExport": "Exported",
                             "status.translationCopied": "Translation copied",
                             "status.translationExported": "Translation exported",
@@ -1376,6 +1382,7 @@
                             "settings.analyze.model": "Model to use",
                             "status.savedToHistory": "Saved as note",
                             "status.savedLiveSession": "Session saved",
+                            "status.liveProjectCreated": "Live session added as project",
                             "status.emptyText": "Text is empty",
                             "status.noProject": "No project selected",
                             "record.ready": "Ready",
@@ -1674,6 +1681,9 @@
                             "live.emptyHint": "Press start — speech will be captioned in real time.",
                             "live.chunkHint": "Transcribes after pauses; translation follows each utterance",
                             "live.noSessions": "No saved sessions yet",
+                            "live.createProject": "Project",
+                            "live.createProjectFailed": "Failed to create project",
+                            "live.translationNoteLabel": "Translation",
                             "live.summary": "{count} segments / {duration}",
                             "live.startFailed": "Failed to start live caption",
                             "live.micError": "Microphone unavailable",
@@ -5016,6 +5026,7 @@
                             showToast(t("status.emptyText"), "warning");
                             return;
                         }
+                        const pipelineWithText = pipeline.map(step => ({ text: note.text, ...step }));
                         setBusy(true);
                         setStatus(t("status.postprocessing"), "busy");
                         try {
@@ -5024,7 +5035,7 @@
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
                                     text: note.text,
-                                    pipeline,
+                                    pipeline: pipelineWithText,
                                     note_id: note.id,
                                     use_linked_context: linkedContextEnabled()
                                 })
@@ -5877,6 +5888,16 @@
 
                     openLiveButton.addEventListener("click", openLiveOverlay);
 
+                    document.addEventListener("keydown", (event) => {
+                        if (event.key !== "Escape") return;
+                        if (liveOverlay.hidden) return;
+                        if (!liveSaveModal.hidden) return;
+                        if (event.ctrlKey || event.altKey || event.metaKey) return;
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        showMainScreen();
+                    });
+
                     // ========== Draft composition ==========
                     const openComposeDraftModal = () => {
                         if (selectedNoteIds.size === 0) {
@@ -6143,6 +6164,87 @@
                         renderLiveSessionsSidebar();
                     };
 
+                    const liveSegmentNoteText = (segment) => {
+                        const source = (segment.source_text || "").trim();
+                        const translated = (segment.translated_text || "").trim();
+                        if (!translated) return source;
+                        return `${source}\n\n${t("live.translationNoteLabel")}:\n${translated}`;
+                    };
+
+                    const liveSegmentNoteTitle = (segment) => {
+                        const source = (segment.source_text || "").replace(/\s+/g, " ").trim();
+                        const preview = source ? source.slice(0, 40) : t("history.title");
+                        return `[${formatElapsed(segment.start_ms || 0)}] ${preview}`;
+                    };
+
+                    const createProjectFromLiveSession = async (session, triggerButton = null) => {
+                        if (triggerButton) triggerButton.disabled = true;
+                        try {
+                            const detailResp = await fetch(`/api/live/sessions/${encodeURIComponent(session.id)}`);
+                            if (!detailResp.ok) {
+                                const err = await detailResp.json().catch(() => ({}));
+                                throw new Error(err.error || t("live.createProjectFailed"));
+                            }
+                            const detail = await detailResp.json();
+                            const segments = (detail.segments || [])
+                                .map(segment => ({
+                                    ...segment,
+                                    noteText: liveSegmentNoteText(segment)
+                                }))
+                                .filter(segment => segment.noteText.trim());
+                            if (segments.length === 0) {
+                                throw new Error(t("live.empty"));
+                            }
+
+                            const projectResp = await fetch("/api/projects", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    name: detail.title || session.title || "Live session",
+                                    description: `${t("live.title")} · ${formatDate(detail.started_at || session.started_at)}`
+                                })
+                            });
+                            if (!projectResp.ok) {
+                                const err = await projectResp.json().catch(() => ({}));
+                                throw new Error(err.error || t("live.createProjectFailed"));
+                            }
+                            const project = await projectResp.json();
+
+                            for (const segment of segments) {
+                                const noteResp = await fetch("/api/notes", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        project_id: project.id,
+                                        title: liveSegmentNoteTitle(segment),
+                                        text: segment.noteText,
+                                        source_name: detail.title || session.title || "Live session",
+                                        language: detail.source_language || null,
+                                        duration: null,
+                                        meta: `${t("live.title")} ${formatElapsed(segment.start_ms || 0)}`
+                                    })
+                                });
+                                if (!noteResp.ok) {
+                                    const err = await noteResp.json().catch(() => ({}));
+                                    throw new Error(err.error || t("live.createProjectFailed"));
+                                }
+                            }
+
+                            currentProjectId = project.id;
+                            saveCurrentProject(currentProjectId);
+                            await refreshProjects();
+                            await refreshHistoryView();
+                            graphLayoutCache = null;
+                            await renderGraph();
+                            showToast(t("status.liveProjectCreated"), "success");
+                        } catch (error) {
+                            console.warn("create project from live session failed", error);
+                            showErrorBanner((error && error.message) || t("live.createProjectFailed"));
+                        } finally {
+                            if (triggerButton) triggerButton.disabled = false;
+                        }
+                    };
+
                     const renderLiveSessionsSidebar = () => {
                         liveSessionsList.replaceChildren();
                         if (liveSavedSessions.length === 0) {
@@ -6196,6 +6298,14 @@
                                     console.warn(err);
                                 }
                             });
+                            const projectButton = document.createElement("button");
+                            projectButton.type = "button";
+                            projectButton.className = "text-button";
+                            projectButton.textContent = t("live.createProject");
+                            projectButton.addEventListener("click", async (event) => {
+                                event.stopPropagation();
+                                await createProjectFromLiveSession(session, projectButton);
+                            });
                             const deleteButton = document.createElement("button");
                             deleteButton.type = "button";
                             deleteButton.className = "text-button";
@@ -6206,7 +6316,7 @@
                                 await fetch(`/api/live/sessions/${encodeURIComponent(session.id)}`, { method: "DELETE" });
                                 await refreshLiveSessions();
                             });
-                            actions.append(viewButton, deleteButton);
+                            actions.append(viewButton, projectButton, deleteButton);
 
                             li.append(header, summary, actions);
                             li.addEventListener("click", () => loadLiveSessionDetail(session.id));
@@ -8650,8 +8760,8 @@
                         }
                     });
 
-                    const createNoteFromCaption = async () => {
-                        const text = captionContent.value.trim();
+                    const createNoteFromText = async (textValue) => {
+                        const text = (textValue || "").trim();
                         if (!text) {
                             setStatus(t("status.emptyText"), "error");
                             return null;
@@ -8678,6 +8788,8 @@
                         return response.json();
                     };
 
+                    const createNoteFromCaption = async () => createNoteFromText(captionContent.value);
+
                     createNoteButton?.addEventListener("click", async () => {
                         try {
                             const created = await createNoteFromCaption();
@@ -8699,6 +8811,286 @@
                             setStatus(t("status.error"), "error");
                         }
                     });
+
+                    let captionContextMenu = null;
+                    let captionContextTarget = null;
+
+                    const closeCaptionContextMenu = () => {
+                        if (captionContextMenu) {
+                            captionContextMenu.remove();
+                            captionContextMenu = null;
+                        }
+                        captionContextTarget = null;
+                    };
+
+                    const captureCaptionContextTarget = () => {
+                        const value = captionContent.value || "";
+                        const start = captionContent.selectionStart ?? 0;
+                        const end = captionContent.selectionEnd ?? start;
+                        const hasSelection = end > start && value.slice(start, end).trim().length > 0;
+                        const targetStart = hasSelection ? start : 0;
+                        const targetEnd = hasSelection ? end : value.length;
+                        const text = value.slice(targetStart, targetEnd);
+                        return {
+                            start: targetStart,
+                            end: targetEnd,
+                            text,
+                            hasSelection
+                        };
+                    };
+
+                    const replaceCaptionContextTarget = (target, replacement) => {
+                        const current = captionContent.value || "";
+                        const next = current.slice(0, target.start) + replacement + current.slice(target.end);
+                        captionContent.value = next;
+                        currentText = next;
+                        updateDirty(true);
+                        syncCaptionButtons();
+                        updateCaptionStats();
+                        const selectionEnd = target.start + replacement.length;
+                        captionContent.focus();
+                        captionContent.setSelectionRange(target.start, selectionEnd);
+                    };
+
+                    const runCaptionContextPipeline = async (target, pipeline, successMessage) => {
+                        if (!target?.text?.trim()) {
+                            showToast(t("status.emptyText"), "warning");
+                            return;
+                        }
+                        const pipelineWithText = pipeline.map(step => ({ text: target.text, ...step }));
+                        setBusy(true);
+                        setStatus(t("status.postprocessing"), "busy");
+                        try {
+                            const response = await fetch("/api/process", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    text: target.text,
+                                    pipeline: pipelineWithText,
+                                    note_id: lastTranscribedNoteId || undefined,
+                                    use_linked_context: linkedContextEnabled()
+                                })
+                            });
+                            const rawBody = await response.text();
+                            let payload = {};
+                            try { payload = rawBody ? JSON.parse(rawBody) : {}; } catch { payload = { error: rawBody }; }
+                            if (!response.ok) throw new Error(payload.error || t("record.failedPostprocess"));
+                            const result = (payload.results || []).slice(-1)[0];
+                            if (!result?.text) throw new Error(t("status.resultEmpty"));
+                            replaceCaptionContextTarget(target, result.text);
+                            setRecordInfo("");
+                            setStatus(t("status.postprocessDone"), "ready");
+                            showToast(successMessage, "success");
+                        } catch (error) {
+                            setStatus(t("status.error"), "error");
+                            showErrorBanner((error && error.message) || t("record.failedPostprocess"));
+                        } finally {
+                            setBusy(false);
+                        }
+                    };
+
+                    const runCaptionContextTranslate = async (target) => {
+                        if (!target?.text?.trim()) {
+                            showToast(t("status.emptyText"), "warning");
+                            return;
+                        }
+                        const config = getPostProcessingConfig();
+                        setBusy(true);
+                        setStatus(t("status.translating"), "busy");
+                        try {
+                            const response = await fetch("/api/translate", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    text: target.text,
+                                    source_language: config.translation.sourceLanguage,
+                                    target_language: config.translation.targetLanguage,
+                                    custom_terms: config.refinement.customTerms,
+                                    custom_instruction: config.translation.customInstruction,
+                                    model: config.translation.model || undefined,
+                                    note_id: lastTranscribedNoteId || undefined,
+                                    use_linked_context: linkedContextEnabled()
+                                })
+                            });
+                            const rawBody = await response.text();
+                            let payload = {};
+                            try { payload = rawBody ? JSON.parse(rawBody) : {}; } catch { payload = { error: rawBody }; }
+                            if (!response.ok) throw new Error(payload.error || t("record.translationFailed"));
+                            const translated = (payload.text || "").trim();
+                            if (!translated) throw new Error(t("status.resultEmpty"));
+                            replaceCaptionContextTarget(target, translated);
+                            setStatus(t("status.translationDone"), "ready");
+                            setRecordInfo("");
+                            showToast(t("status.translationDone"), "success");
+                        } catch (error) {
+                            setStatus(t("status.error"), "error");
+                            showErrorBanner((error && error.message) || t("record.translationFailed"));
+                        } finally {
+                            setBusy(false);
+                        }
+                    };
+
+                    const runCaptionContextAnalyze = async (target) => {
+                        if (!target?.text?.trim()) {
+                            showToast(t("status.emptyText"), "warning");
+                            return;
+                        }
+                        setBusy(true);
+                        setStatus(t("status.postprocessing"), "busy");
+                        try {
+                            const response = await fetch("/api/analyze", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    text: target.text,
+                                    model: analyzeModel?.value || undefined,
+                                    note_id: lastTranscribedNoteId || undefined,
+                                    use_linked_context: linkedContextEnabled()
+                                })
+                            });
+                            const rawBody = await response.text();
+                            let payload = {};
+                            try { payload = rawBody ? JSON.parse(rawBody) : {}; } catch { payload = { error: rawBody }; }
+                            if (!response.ok) throw new Error(payload.error || t("note.analysisFailed"));
+                            const toastLines = [
+                                payload.tone ? `${t("note.analysis.tone")}: ${payload.tone}` : "",
+                                payload.summary || "",
+                                Array.isArray(payload.keywords) && payload.keywords.length
+                                    ? `${t("note.analysis.keywords")}: ${payload.keywords.join(", ")}`
+                                    : ""
+                            ].filter(Boolean);
+                            const copiedText = toastLines.join("\n");
+                            if (!copiedText) throw new Error(t("status.resultEmpty"));
+                            if (!navigator.clipboard?.writeText) throw new Error(t("status.clipboardUnavailable"));
+                            await navigator.clipboard.writeText(copiedText);
+                            setStatus(t("status.done"), "ready");
+                            showToast(t("status.copied"), "success");
+                        } catch (error) {
+                            setStatus(t("status.error"), "error");
+                            showErrorBanner((error && error.message) || t("note.analysisFailed"));
+                        } finally {
+                            setBusy(false);
+                        }
+                    };
+
+                    const runCaptionContextMenuAction = async (action) => {
+                        const target = captionContextTarget ? { ...captionContextTarget } : captureCaptionContextTarget();
+                        closeCaptionContextMenu();
+                        if (!target?.text?.trim()) {
+                            showToast(t("status.emptyText"), "warning");
+                            return;
+                        }
+                        if (action === "copy") {
+                            if (navigator.clipboard?.writeText) {
+                                await navigator.clipboard.writeText(target.text);
+                                showToast(t("status.copied"), "success");
+                            }
+                            return;
+                        }
+                        if (action === "note") {
+                            try {
+                                const created = await createNoteFromText(target.text);
+                                if (!created) return;
+                                lastTranscribedNoteId = created.id || lastTranscribedNoteId;
+                                if (created.id) {
+                                    highlightedNoteId = created.id;
+                                    highlightedGraphNodeId = `note:${created.id}`;
+                                }
+                                await refreshHistoryView();
+                                graphLayoutCache = null;
+                                await renderGraph();
+                                showToast(t("status.savedToHistory"), "success");
+                            } catch (error) {
+                                showErrorBanner((error && error.message) || "save failed");
+                                setStatus(t("status.error"), "error");
+                            }
+                            return;
+                        }
+                        if (captionContent.readOnly) return;
+                        const config = getPostProcessingConfig();
+                        if (action === "refine") {
+                            await runCaptionContextPipeline(target, [{
+                                type: "refine",
+                                remove_fillers: config.refinement.removeFillers,
+                                voice_commands: config.refinement.voiceCommands,
+                                custom_terms: config.refinement.customTerms,
+                                custom_instruction: config.refinement.customInstruction,
+                                model: config.refinement.model || undefined
+                            }], t("status.refineDone"));
+                        } else if (action === "translate") {
+                            await runCaptionContextTranslate(target);
+                        } else if (action === "analyze") {
+                            await runCaptionContextAnalyze(target);
+                        }
+                    };
+
+                    const showCaptionContextMenu = (target, clientX, clientY) => {
+                        closeCaptionContextMenu();
+                        closeNoteContextMenu();
+                        captionContextTarget = target;
+                        const menu = document.createElement("div");
+                        menu.className = "note-context-menu caption-context-menu";
+                        menu.setAttribute("role", "menu");
+
+                        const addItem = (label, action, disabled = false) => {
+                            const button = document.createElement("button");
+                            button.type = "button";
+                            button.className = "note-context-menu-item";
+                            button.dataset.action = action;
+                            button.disabled = disabled;
+                            button.textContent = label;
+                            button.addEventListener("click", () => {
+                                runCaptionContextMenuAction(action);
+                            });
+                            menu.append(button);
+                        };
+                        const addSeparator = () => {
+                            const separator = document.createElement("div");
+                            separator.className = "note-context-menu-separator";
+                            separator.setAttribute("role", "separator");
+                            menu.append(separator);
+                        };
+
+                        const locked = captionContent.readOnly;
+                        addItem(t("button.copy"), "copy");
+                        addSeparator();
+                        addItem(t("quick.autoRefine"), "refine", locked);
+                        addItem(t("quick.autoTranslate"), "translate", locked);
+                        addItem(t("quick.autoAnalyze"), "analyze", locked);
+                        addSeparator();
+                        addItem(t("button.createNote"), "note");
+
+                        document.body.append(menu);
+                        const rect = menu.getBoundingClientRect();
+                        const margin = 8;
+                        const left = Math.min(clientX, window.innerWidth - rect.width - margin);
+                        const top = Math.min(clientY, window.innerHeight - rect.height - margin);
+                        menu.style.left = Math.max(margin, left) + "px";
+                        menu.style.top = Math.max(margin, top) + "px";
+                        captionContextMenu = menu;
+                    };
+
+                    captionContent.addEventListener("contextmenu", (event) => {
+                        closeCaptionContextMenu();
+                        if (event.shiftKey) return;
+                        const target = captureCaptionContextTarget();
+                        if (!target.text.trim()) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        showCaptionContextMenu(target, event.clientX, event.clientY);
+                    });
+
+                    document.addEventListener("pointerdown", (event) => {
+                        if (!captionContextMenu) return;
+                        if (captionContextMenu.contains(event.target)) return;
+                        closeCaptionContextMenu();
+                    });
+                    document.addEventListener("keydown", (event) => {
+                        if (event.key === "Escape") closeCaptionContextMenu();
+                    });
+                    window.addEventListener("blur", closeCaptionContextMenu);
+                    window.addEventListener("resize", closeCaptionContextMenu);
+                    captionContent.addEventListener("scroll", closeCaptionContextMenu);
 
                     // Decode arbitrary audio Blob to 16kHz mono PCM16 WAV.
                     // Foundry Local AudioDecoder cannot sniff WebM/Opus, so we hand it WAV.
@@ -10368,6 +10760,21 @@
                     color: #79c0ff;
                 }
 
+                .note-context-menu-item:disabled {
+                    opacity: 0.45;
+                    cursor: not-allowed;
+                }
+
+                .note-context-menu-item:disabled:hover,
+                .note-context-menu-item:disabled:focus {
+                    background: transparent;
+                    color: inherit;
+                }
+
+                .caption-context-menu {
+                    min-width: 184px;
+                }
+
                 .note-context-menu-item[data-danger="true"] {
                     color: #ffb4a9;
                 }
@@ -10917,6 +11324,7 @@
                     display: flex;
                     gap: 4px;
                     justify-content: flex-end;
+                    flex-wrap: wrap;
                 }
 
                 .live-sidebar-actions .text-button {

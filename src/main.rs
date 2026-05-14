@@ -337,9 +337,9 @@ impl VoiceToTextService {
             .await?;
         let client = model.create_chat_client().temperature(0.0).max_tokens(1024);
         let filler_instruction = if request.remove_fillers {
-            "フィラーや言いよどみは削除済みです。残っている不要な言いよどみだけを追加で除去してください。"
+            "Common fillers have already been removed. Remove only any remaining unnecessary filler or hesitation."
         } else {
-            "意味のある言いよどみは残してください。"
+            "Keep hesitations that carry meaning."
         };
         let custom_terms = request
             .custom_terms
@@ -355,17 +355,18 @@ impl VoiceToTextService {
             .filter(|value| !value.is_empty())
             .map(|value| format!("\n- 追加指示: {value}"))
             .unwrap_or_default();
+        let language_guard = refinement_language_guard_instruction(&source_text);
 
         // Refine = meaning-preserving cleanup ONLY. Rewriting style, tone, or
         // register is explicitly out of scope — users who want those changes
         // should configure a Custom post-processing step instead.
         let user_prompt = format!(
-            "次の文字起こしを校正してください。\n\n厳守:\n- 文の意味・内容・情報量を一切変えないでください。言い換え・敬体化・常体化・スタイル変更は禁止です。\n- 可能な限り元の語彙と言い回しをそのまま残してください。\n- {filler_instruction}\n- 明らかな音声認識の誤変換（同音異義語の誤り等）と句読点・表記ゆれのみを補正してください。\n- 要約しないでください。\n- 文や情報を削除しないでください。\n- 入力の文の順序を維持してください。\n- 事実、主語、目的語、専門用語を新たに追加しないでください。\n- 入力と同じ言語で出力してください。\n- 前置き、説明、見出し、引用符は出力しないでください。\n- 出力は校正後の本文のみです。{custom_terms}{custom_instruction}\n\n入力:\n{source_text}"
+            "Proofread the following transcription without translating it.\n\nStrict rules:\n- Preserve the exact language and script of the input. Do not translate.\n- {language_guard}\n- If the input is English, output English only. If the input is Japanese, output Japanese only.\n- Do not output Chinese unless the input itself is Chinese.\n- Do not change meaning, content, amount of information, wording style, or register.\n- Keep the original vocabulary and phrasing as much as possible.\n- {filler_instruction}\n- Only fix obvious speech-recognition errors, punctuation, spacing, and notation inconsistencies.\n- Do not summarize.\n- Do not remove sentences or information.\n- Keep the original sentence order.\n- Do not add facts, subjects, objects, or terms.\n- Output only the proofread body. No preface, explanation, heading, or quotes.{custom_terms}{custom_instruction}\n\nInput:\n{source_text}"
         );
         let mut messages: Vec<ChatCompletionRequestMessage> = Vec::new();
         messages.push(
             ChatCompletionRequestSystemMessage::from(
-                "あなたは文字起こしの校正エンジンです。意味・内容・語彙は一切変えず、明らかな誤変換と不要なフィラー・句読点の乱れのみを補正し、本文のみを出力します。スタイル変更や敬体化などの書き換えは決して行いません。",
+                "You are a transcription proofreading engine. Never translate the input. Always keep the same language and script as the input. Only correct obvious recognition errors, filler remnants, punctuation, spacing, and notation. Output the body text only.",
             )
             .into(),
         );
@@ -390,7 +391,14 @@ impl VoiceToTextService {
             return Err(AppError::internal("整形結果が空でした"));
         }
 
-        Ok(strip_llm_preamble(&refined))
+        let refined = strip_llm_preamble(&refined);
+        if refinement_language_changed(&source_text, &refined) {
+            return Err(AppError::internal(
+                "整形結果の言語が入力と異なるため破棄しました",
+            ));
+        }
+
+        Ok(refined)
     }
 
     async fn translate(
@@ -3775,6 +3783,156 @@ fn linked_context_for(storage: &Storage, note_id: Option<&str>, enabled: bool) -
     fetch_linked_context(storage, id)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TextScript {
+    Latin,
+    Japanese,
+    Cjk,
+    Hangul,
+    Cyrillic,
+    Arabic,
+    Devanagari,
+    Thai,
+}
+
+#[derive(Default)]
+struct TextScriptCounts {
+    latin: usize,
+    cjk: usize,
+    kana: usize,
+    hangul: usize,
+    cyrillic: usize,
+    arabic: usize,
+    devanagari: usize,
+    thai: usize,
+}
+
+impl TextScriptCounts {
+    fn total(&self) -> usize {
+        self.latin
+            + self.cjk
+            + self.kana
+            + self.hangul
+            + self.cyrillic
+            + self.arabic
+            + self.devanagari
+            + self.thai
+    }
+}
+
+fn count_text_scripts(text: &str) -> TextScriptCounts {
+    let mut counts = TextScriptCounts::default();
+    for ch in text.chars() {
+        if ch.is_ascii_alphabetic() {
+            counts.latin += 1;
+        } else if ('\u{00C0}'..='\u{024F}').contains(&ch) || ('\u{1E00}'..='\u{1EFF}').contains(&ch)
+        {
+            counts.latin += 1;
+        } else if ('\u{3040}'..='\u{30FF}').contains(&ch) {
+            counts.kana += 1;
+        } else if ('\u{4E00}'..='\u{9FFF}').contains(&ch) || ('\u{3400}'..='\u{4DBF}').contains(&ch)
+        {
+            counts.cjk += 1;
+        } else if ('\u{AC00}'..='\u{D7AF}').contains(&ch) || ('\u{1100}'..='\u{11FF}').contains(&ch)
+        {
+            counts.hangul += 1;
+        } else if ('\u{0400}'..='\u{04FF}').contains(&ch) {
+            counts.cyrillic += 1;
+        } else if ('\u{0600}'..='\u{06FF}').contains(&ch) {
+            counts.arabic += 1;
+        } else if ('\u{0900}'..='\u{097F}').contains(&ch) {
+            counts.devanagari += 1;
+        } else if ('\u{0E00}'..='\u{0E7F}').contains(&ch) {
+            counts.thai += 1;
+        }
+    }
+    counts
+}
+
+fn dominant_text_script(text: &str) -> Option<TextScript> {
+    let counts = count_text_scripts(text);
+    if counts.total() < 3 {
+        return None;
+    }
+    if counts.kana > 0 && counts.kana + counts.cjk >= 3 {
+        return Some(TextScript::Japanese);
+    }
+
+    let candidates = [
+        (TextScript::Latin, counts.latin),
+        (TextScript::Cjk, counts.cjk),
+        (TextScript::Hangul, counts.hangul),
+        (TextScript::Cyrillic, counts.cyrillic),
+        (TextScript::Arabic, counts.arabic),
+        (TextScript::Devanagari, counts.devanagari),
+        (TextScript::Thai, counts.thai),
+    ];
+    candidates
+        .into_iter()
+        .filter(|(_, count)| *count >= 3)
+        .max_by_key(|(_, count)| *count)
+        .map(|(script, _)| script)
+}
+
+fn refinement_language_guard_instruction(source_text: &str) -> &'static str {
+    match dominant_text_script(source_text) {
+        Some(TextScript::Latin) => {
+            "Detected input script: Latin. The output must remain in the same Latin-script language as the input. Do not output Chinese, Japanese, Korean, Cyrillic, Arabic, or another script."
+        }
+        Some(TextScript::Japanese) => {
+            "Detected input language/script: Japanese. The output must remain Japanese. Do not translate it into Chinese, English, Korean, or any other language."
+        }
+        Some(TextScript::Cjk) => {
+            "Detected input script: CJK ideographs. Preserve the same source language and script. Do not switch between Chinese, Japanese, Korean, or another language."
+        }
+        Some(TextScript::Hangul) => {
+            "Detected input script: Korean Hangul. The output must remain Korean Hangul."
+        }
+        Some(TextScript::Cyrillic) => {
+            "Detected input script: Cyrillic. The output must remain in the same Cyrillic-script language."
+        }
+        Some(TextScript::Arabic) => {
+            "Detected input script: Arabic. The output must remain in the same Arabic-script language."
+        }
+        Some(TextScript::Devanagari) => {
+            "Detected input script: Devanagari. The output must remain in the same Devanagari-script language."
+        }
+        Some(TextScript::Thai) => "Detected input script: Thai. The output must remain Thai.",
+        None => "Preserve the input language and script exactly. Do not translate.",
+    }
+}
+
+fn refinement_language_changed(source_text: &str, refined_text: &str) -> bool {
+    let Some(source_script) = dominant_text_script(source_text) else {
+        return false;
+    };
+    let Some(refined_script) = dominant_text_script(refined_text) else {
+        return false;
+    };
+    if source_script == refined_script {
+        return false;
+    }
+
+    let source_counts = count_text_scripts(source_text);
+    let refined_counts = count_text_scripts(refined_text);
+    let refined_total = refined_counts.total().max(1);
+    let cjk_like = refined_counts.cjk + refined_counts.kana + refined_counts.hangul;
+
+    // A few proper nouns in another script are fine. A dominant script switch is not.
+    (match source_script {
+        TextScript::Latin => {
+            cjk_like * 100 / refined_total >= 20 || refined_script != TextScript::Latin
+        }
+        TextScript::Japanese => refined_script != TextScript::Japanese,
+        TextScript::Cjk => refined_script != TextScript::Cjk,
+        TextScript::Hangul => refined_script != TextScript::Hangul,
+        TextScript::Cyrillic => refined_script != TextScript::Cyrillic,
+        TextScript::Arabic => refined_script != TextScript::Arabic,
+        TextScript::Devanagari => refined_script != TextScript::Devanagari,
+        TextScript::Thai => refined_script != TextScript::Thai,
+    }) && source_counts.total() >= 3
+}
+
 fn remove_common_fillers(text: &str) -> String {
     let mut cleaned = text.to_string();
     for filler in [
@@ -4843,4 +5001,33 @@ fn main() {
         }
         _ => {}
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refinement_guard_rejects_english_to_cjk() {
+        assert!(refinement_language_changed(
+            "This meeting starts at nine and covers the quarterly roadmap.",
+            "这次会议从九点开始，讨论季度路线图。"
+        ));
+    }
+
+    #[test]
+    fn refinement_guard_allows_english_to_english() {
+        assert!(!refinement_language_changed(
+            "This meeting starts at nine and covers the quarterly roadmap.",
+            "This meeting starts at 9 and covers the quarterly roadmap."
+        ));
+    }
+
+    #[test]
+    fn refinement_guard_allows_japanese_to_japanese() {
+        assert!(!refinement_language_changed(
+            "今日は新しい機能について説明します。",
+            "今日は新しい機能について説明します。"
+        ));
+    }
 }
