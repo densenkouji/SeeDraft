@@ -90,7 +90,7 @@
     "caption.label": "文字起こし結果",
     "caption.placeholder": "ここに文字起こし結果が表示されます",
     "caption.unsaved": "未保存",
-    "button.saveToHistory": "📥 ノートに追加",
+    "button.createNote": "＋ ノート作成",
     "quick.autoSave": "ノート追加",
     "quick.postprocessGroup": "後処理",
     "quick.autoRefine": "整形",

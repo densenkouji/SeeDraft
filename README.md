@@ -1,14 +1,16 @@
 
-<center><img src="images/SeeDraft-icon_128x128.png" alt="logo"></center>
-
-> Local-first, privacy-friendly voice-to-text for Windows.
-> Record, transcribe, refine, translate, connect, and draft with on-device AI.
+<p align="center">
+    <img src="images/SeeDraft-icon_128x128.png" alt="logo">
+</p>
+<p align="center">Local-first, privacy-friendly voice-to-text for Windows. Record, transcribe, refine, translate, connect, and draft with on-device AI.</p>
 
 # SeeDraft
 
 **Languages:** **English** · [日本語](README.ja.md)
 
 ---
+[![SeeDraft Main Windows](images\screen01.png)](https://github.com/densenkouji/SeeDraft)
+
 
 ## Overview
 

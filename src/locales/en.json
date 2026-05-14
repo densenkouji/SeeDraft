@@ -90,7 +90,7 @@
     "caption.label": "Transcription Result",
     "caption.placeholder": "Transcription result will appear here",
     "caption.unsaved": "Unsaved",
-    "button.saveToHistory": "📥 Save as note",
+    "button.createNote": "+ Create note",
     "quick.autoSave": "Save to note",
     "quick.postprocessGroup": "Post-process",
     "quick.autoRefine": "Refine",

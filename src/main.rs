@@ -1867,7 +1867,7 @@ async fn transcribe_handler(
 
     // Persist the transcription as a note only when the caller opted in.
     // Otherwise the transcription is returned in the response and the user
-    // can still save it manually via the "📥 ノートに追加" button.
+    // can still save it manually with the create-note button.
     let resolved_project_id = match project_id {
         Some(id) => id,
         None => state.storage.default_project_id()?,

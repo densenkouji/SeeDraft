@@ -135,7 +135,7 @@
                                         <div class="control-bar-left">
                                             <button id="copyMainButton" class="icon-button" type="button" data-i18n-title="button.copy" title="コピー" aria-label="Copy">📋</button>
                                             <button id="clearMainButton" class="icon-button" type="button" data-i18n-title="button.clear" title="クリア" aria-label="Clear">🗑</button>
-                                            <button id="saveToHistoryButton" class="text-button primary-inline" type="button" data-i18n="button.saveToHistory">📥 ノートに追加</button>
+                                            <button id="createNoteButton" class="text-button primary-inline" type="button" data-i18n="button.createNote">＋ ノート作成</button>
                                         </div>
                                         <div class="quick-toggles">
                                             <label class="quick-toggle" data-i18n-title="quick.autoSaveTooltip" title="文字起こし完了後、自動的にノートに追加します">
@@ -858,7 +858,7 @@
                             "caption.label": "文字起こし結果",
                             "caption.placeholder": "ここに文字起こし結果が表示されます",
                             "caption.unsaved": "未保存",
-                            "button.saveToHistory": "📥 ノートに追加",
+                            "button.createNote": "＋ ノート作成",
                             "quick.autoSave": "ノート追加",
                             "quick.postprocessGroup": "後処理",
                             "quick.autoRefine": "整形",
@@ -1336,7 +1336,7 @@
                             "caption.label": "Transcription Result",
                             "caption.placeholder": "Transcription result will appear here",
                             "caption.unsaved": "Unsaved",
-                            "button.saveToHistory": "📥 Save as note",
+                            "button.createNote": "+ Create note",
                             "quick.autoSave": "Save to note",
                             "quick.postprocessGroup": "Post-process",
                             "quick.autoRefine": "Refine",
@@ -1955,7 +1955,7 @@
                     const clearMainButton = document.getElementById("clearMainButton");
                     const closeSettingsButton = document.getElementById("closeSettingsButton");
                     const copyMainButton = document.getElementById("copyMainButton");
-                    const saveToHistoryButton = document.getElementById("saveToHistoryButton");
+                    const createNoteButton = document.getElementById("createNoteButton");
                     const currentModelBadge = document.getElementById("currentModelBadge");
                     const currentModelLabel = document.getElementById("currentModelLabel");
                     const currentLanguageBadge = document.getElementById("currentLanguageBadge");
@@ -3614,7 +3614,7 @@
                         const hasText = !!captionContent.value.trim();
                         copyMainButton.disabled = !hasText;
                         clearMainButton.disabled = !hasText;
-                        saveToHistoryButton.disabled = !hasText;
+                        if (createNoteButton) createNoteButton.disabled = !hasText;
                     };
 
                     // Simple filler detector (Japanese + English common fillers).
@@ -7050,6 +7050,7 @@
                     updateMainDisplay("");
                     copyMainButton.disabled = true;
                     clearMainButton.disabled = true;
+                    if (createNoteButton) createNoteButton.disabled = true;
 
                     // Restore last-selected speech model before first render.
                     // refreshSpeechModels() will validate this against the server response.
@@ -8276,8 +8277,8 @@
                         const parentNoteId = selectedGraphParentNoteId();
                         if (parentNoteId) formData.append("parent_id", parentNoteId);
                         // Tell the backend whether to persist this transcription as
-                        // a note. Controlled by the "📥 ノートに追加" quick toggle —
-                        // off means the text only shows on screen.
+                        // a note. Controlled by the quick auto-save toggle; off means
+                        // the text only shows on screen.
                         formData.append("save_as_note", quickAutoSave?.checked ? "true" : "false");
                         formData.append("audio", selectedFile, sourceName);
 
@@ -8348,12 +8349,6 @@
                                 }
                             }
 
-                            // Auto-save: if the quick toggle is on, push the current caption to notes.
-                            if (quickAutoSave?.checked && captionContent.value.trim() && currentProjectId) {
-                                try {
-                                    saveToHistoryButton.click();
-                                } catch (_) {}
-                            }
                         } catch (error) {
                             console.error("transcribe failed", error);
                             setStatus(t("status.error"), "error");
@@ -8379,71 +8374,51 @@
                         setStatus(t("status.idle"), "idle");
                     });
 
-                    saveToHistoryButton.addEventListener("click", async () => {
+                    const createNoteFromCaption = async () => {
                         const text = captionContent.value.trim();
                         if (!text) {
                             setStatus(t("status.emptyText"), "error");
-                            return;
+                            return null;
                         }
                         if (!currentProjectId) {
                             setStatus(t("status.noProject"), "error");
-                            return;
+                            return null;
                         }
+                        const parentNoteId = selectedGraphParentNoteId();
+                        const response = await fetch(`/api/notes`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                project_id: currentProjectId,
+                                title: text.slice(0, 40),
+                                text,
+                                parent_id: parentNoteId
+                            })
+                        });
+                        if (!response.ok) {
+                            const err = await response.json().catch(() => ({}));
+                            throw new Error(err.error || "save failed");
+                        }
+                        return response.json();
+                    };
+
+                    createNoteButton?.addEventListener("click", async () => {
                         try {
+                            const created = await createNoteFromCaption();
+                            if (!created) return;
+                            lastTranscribedNoteId = created.id || null;
                             if (lastTranscribedNoteId) {
-                                // Update the current note with edited content
-                                const response = await fetch(`/api/notes/${lastTranscribedNoteId}`, {
-                                    method: "PUT",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                        title: "",
-                                        text,
-                                        meta: null
-                                    })
-                                });
-                                if (!response.ok) {
-                                    const err = await response.json().catch(() => ({}));
-                                    throw new Error(err.error || "save failed");
-                                }
-                            } else {
-                                const parentNoteId = selectedGraphParentNoteId();
-                                // No linked note yet: create a manual note via transcribe alternative.
-                                // We use an internal POST to /api/notes is not available; re-use the notes
-                                // creation path via a synthetic transcription record is overkill. Instead,
-                                // POST a minimal request: create a note by calling the update endpoint on a
-                                // newly-created dummy entry would also be overkill. So we create via the
-                                // projects DB path using the transcribe endpoint is not applicable either.
-                                // Simpler: add a dedicated endpoint is ideal, but we can use the update path
-                                // after creating a note record through a new endpoint. For now, call a
-                                // fallback endpoint:
-                                const response = await fetch(`/api/notes`, {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                        project_id: currentProjectId,
-                                        title: text.slice(0, 40),
-                                        text,
-                                        parent_id: parentNoteId
-                                    })
-                                });
-                                if (!response.ok) {
-                                    const err = await response.json().catch(() => ({}));
-                                    throw new Error(err.error || "save failed");
-                                }
-                                const created = await response.json();
-                                lastTranscribedNoteId = created.id || null;
-                                if (lastTranscribedNoteId) {
-                                    highlightedNoteId = lastTranscribedNoteId;
-                                    highlightedGraphNodeId = `note:${lastTranscribedNoteId}`;
-                                }
+                                highlightedNoteId = lastTranscribedNoteId;
+                                highlightedGraphNodeId = `note:${lastTranscribedNoteId}`;
                             }
-                            currentText = text;
+                            currentText = captionContent.value.trim();
                             updateDirty(false);
                             await refreshHistoryView();
+                            graphLayoutCache = null;
                             await renderGraph();
                             showToast(t("status.savedToHistory"), "success");
                         } catch (error) {
-                            console.error("save to history failed", error);
+                            console.error("create note failed", error);
                             showErrorBanner((error && error.message) || "save failed");
                             setStatus(t("status.error"), "error");
                         }
