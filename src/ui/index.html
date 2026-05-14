@@ -112,6 +112,10 @@
                                     <div class="caption-wrapper">
                                         <textarea id="captionContent" class="caption-content" data-i18n-placeholder="caption.placeholder" placeholder="ここに文字起こし結果が表示されます"></textarea>
                                         <span id="captionDirty" class="caption-dirty" hidden data-i18n="caption.unsaved">未保存</span>
+                                        <div class="caption-action-bar" aria-label="Transcription actions">
+                                            <button id="copyMainButton" class="icon-button" type="button" data-i18n-title="button.copy" title="コピー" aria-label="Copy">📋</button>
+                                            <button id="createNoteButton" class="text-button primary-inline caption-create-note" type="button" data-i18n="button.createNote">＋ ノート作成</button>
+                                        </div>
                                     </div>
                                     <div id="captionStats" class="caption-stats" hidden>
                                         <span class="caption-stat">
@@ -132,37 +136,27 @@
                                         </span>
                                     </div>
                                     <div class="control-bar">
-                                        <div class="control-bar-left">
-                                            <button id="copyMainButton" class="icon-button" type="button" data-i18n-title="button.copy" title="コピー" aria-label="Copy">📋</button>
-                                            <button id="clearMainButton" class="icon-button" type="button" data-i18n-title="button.clear" title="クリア" aria-label="Clear">🗑</button>
-                                            <button id="createNoteButton" class="text-button primary-inline" type="button" data-i18n="button.createNote">＋ ノート作成</button>
-                                        </div>
                                         <div class="quick-toggles">
                                             <label class="quick-toggle" data-i18n-title="quick.autoSaveTooltip" title="文字起こし完了後、自動的にノートに追加します">
                                                 <input id="quickAutoSave" type="checkbox" />
-                                                <span class="quick-toggle-icon">📥</span>
                                                 <span class="quick-toggle-text" data-i18n="quick.autoSave">ノート追加</span>
                                             </label>
                                             <span class="quick-toggle-group" role="group" aria-labelledby="quickPostprocessLabel">
                                                 <span id="quickPostprocessLabel" class="quick-toggle-group-label" data-i18n="quick.postprocessGroup">後処理</span>
                                                 <label class="quick-toggle" data-i18n-title="quick.autoRefineTooltip" title="文字起こし後に整形します">
                                                     <input id="quickAutoRefine" type="checkbox" />
-                                                    <span class="quick-toggle-icon">✨</span>
                                                     <span class="quick-toggle-text" data-i18n="quick.autoRefine">整形</span>
                                                 </label>
                                                 <label class="quick-toggle" data-i18n-title="quick.autoTranslateTooltip" title="文字起こし後に翻訳します">
                                                     <input id="quickAutoTranslate" type="checkbox" />
-                                                    <span class="quick-toggle-icon">🌐</span>
                                                     <span class="quick-toggle-text" data-i18n="quick.autoTranslate">翻訳</span>
                                                 </label>
                                                 <label class="quick-toggle" data-i18n-title="quick.autoAnalyzeTooltip" title="文字起こし後にトーン・要点・キーワードを抽出します">
                                                     <input id="quickAutoAnalyze" type="checkbox" />
-                                                    <span class="quick-toggle-icon">🔍</span>
                                                     <span class="quick-toggle-text" data-i18n="quick.autoAnalyze">抽出</span>
                                                 </label>
                                                 <label class="quick-toggle" data-i18n-title="quick.autoCustomTooltip" title="文字起こし後にカスタム後処理ステップを実行します">
                                                     <input id="quickAutoCustom" type="checkbox" />
-                                                    <span class="quick-toggle-icon">⚙</span>
                                                     <span class="quick-toggle-text" data-i18n="quick.autoCustom">カスタム</span>
                                                 </label>
                                             </span>
@@ -1981,7 +1975,6 @@
                     const captionContent = document.getElementById("captionContent");
                     const captionDisplay = document.getElementById("captionDisplay");
                     const captionDirty = document.getElementById("captionDirty");
-                    const clearMainButton = document.getElementById("clearMainButton");
                     const closeSettingsButton = document.getElementById("closeSettingsButton");
                     const copyMainButton = document.getElementById("copyMainButton");
                     const createNoteButton = document.getElementById("createNoteButton");
@@ -3667,7 +3660,6 @@
                     const syncCaptionButtons = () => {
                         const hasText = !!captionContent.value.trim();
                         copyMainButton.disabled = !hasText;
-                        clearMainButton.disabled = !hasText;
                         if (createNoteButton) createNoteButton.disabled = !hasText;
                     };
 
@@ -7224,7 +7216,6 @@
 
                     updateMainDisplay("");
                     copyMainButton.disabled = true;
-                    clearMainButton.disabled = true;
                     if (createNoteButton) createNoteButton.disabled = true;
 
                     // Restore last-selected speech model before first render.
@@ -8659,12 +8650,6 @@
                         }
                     });
 
-                    clearMainButton.addEventListener("click", () => {
-                        updateMainDisplay("");
-                        setRecordInfo("");
-                        setStatus(t("status.idle"), "idle");
-                    });
-
                     const createNoteFromCaption = async () => {
                         const text = captionContent.value.trim();
                         if (!text) {
@@ -9942,21 +9927,25 @@
                 }
 
                 .caption-wrapper {
+                    --caption-actions-width: 116px;
                     position: relative;
                     flex: 1;
-                    display: flex;
+                    display: grid;
+                    grid-template-columns: minmax(0, 1fr) var(--caption-actions-width);
+                    gap: 8px;
+                    align-items: stretch;
                     min-height: 100px;
                 }
 
                 .caption-wrapper .caption-dirty {
                     position: absolute;
                     top: 8px;
-                    right: 10px;
+                    right: calc(var(--caption-actions-width) + 18px);
                     pointer-events: none;
                 }
 
                 .work-pane .caption-content {
-                    flex: 1;
+                    min-width: 0;
                     padding: 14px 16px;
                     font-size: 1.1rem;
                     line-height: 1.55;
@@ -9964,6 +9953,32 @@
                     border-radius: 10px;
                     background: var(--bg-inset);
                     min-height: 100px;
+                }
+
+                .caption-action-bar {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    align-self: stretch;
+                }
+
+                .caption-action-bar .icon-button,
+                .caption-action-bar .text-button {
+                    width: 100%;
+                    min-height: 36px;
+                    justify-content: center;
+                }
+
+                .caption-action-bar .icon-button {
+                    flex: 0 0 36px;
+                }
+
+                .caption-create-note {
+                    flex: 1;
+                    min-height: 52px;
+                    padding: 0 10px;
+                    line-height: 1.25;
+                    white-space: normal;
                 }
 
                 .work-pane .caption-stats {
@@ -9983,19 +9998,13 @@
                     opacity: 0.8;
                 }
 
-                /* New single-row control bar: actions on the left, record on the right */
+                /* Compact control bar: quick settings, input source, record action */
                 .work-pane .control-bar {
-                    display: flex;
+                    display: grid;
+                    grid-template-columns: minmax(0, 1fr) auto auto;
                     align-items: center;
-                    justify-content: space-between;
                     gap: 12px;
                     padding: 8px 12px;
-                }
-
-                .control-bar-left {
-                    display: flex;
-                    align-items: center;
-                    gap: 6px;
                 }
 
                 .work-pane .record-button {
@@ -11587,8 +11596,9 @@
                 .quick-toggles {
                     display: flex;
                     align-items: center;
-                    gap: 10px;
+                    gap: 6px;
                     flex-wrap: wrap;
+                    min-width: 0;
                 }
 
                 /* Grouping container for the 3 post-processing toggles. A subtle
@@ -11597,10 +11607,10 @@
                 .quick-toggle-group {
                     display: inline-flex;
                     align-items: center;
-                    gap: 6px;
-                    padding: 4px 8px 4px 10px;
+                    gap: 3px;
+                    padding: 3px 5px 3px 8px;
                     border: 1px dashed var(--border-default);
-                    border-radius: 14px;
+                    border-radius: 10px;
                     background: var(--bg-surface);
                 }
 
@@ -11608,7 +11618,7 @@
                     color: var(--text-muted);
                     font-size: 0.68rem;
                     font-weight: 700;
-                    letter-spacing: 0.04em;
+                    letter-spacing: 0;
                     text-transform: uppercase;
                     padding-right: 2px;
                 }
@@ -11616,16 +11626,20 @@
                 .quick-toggle {
                     display: inline-flex;
                     align-items: center;
-                    gap: 4px;
-                    padding: 4px 10px;
+                    justify-content: center;
+                    gap: 0;
+                    padding: 4px 8px;
                     border: 1px solid var(--border-default);
-                    border-radius: 999px;
+                    border-radius: 8px;
                     background: var(--bg-surface-2);
                     color: var(--text-muted);
-                    font-size: 0.78rem;
+                    font-size: 0.76rem;
                     font-weight: 600;
+                    line-height: 1.2;
+                    min-height: 28px;
                     cursor: pointer;
                     transition: all 0.15s ease;
+                    white-space: nowrap;
                 }
 
                 .quick-toggle:hover {
@@ -11643,8 +11657,8 @@
                     color: #79c0ff;
                 }
 
-                .quick-toggle-icon {
-                    font-size: 0.85rem;
+                .quick-toggle-group .quick-toggle {
+                    padding-inline: 7px;
                 }
 
                 .input-source-control {
@@ -13615,10 +13629,42 @@
                         font-size: 1.25rem;
                     }
 
-                    .control-bar {
+                    .caption-wrapper {
+                        --caption-actions-width: 0px;
+                        grid-template-columns: minmax(0, 1fr);
+                    }
+
+                    .caption-wrapper .caption-dirty {
+                        right: 10px;
+                    }
+
+                    .caption-action-bar {
+                        flex-direction: row;
+                    }
+
+                    .caption-action-bar .icon-button {
+                        width: 44px;
+                        flex: 0 0 44px;
+                    }
+
+                    .caption-create-note {
+                        min-height: 36px;
+                    }
+
+                    .control-bar,
+                    .work-pane .control-bar {
                         grid-template-columns: 1fr;
                         gap: 8px;
                         text-align: center;
+                    }
+
+                    .quick-toggles {
+                        justify-content: center;
+                    }
+
+                    .input-source-control,
+                    .record-button-wrap {
+                        justify-self: center;
                     }
 
                     .record-info,
