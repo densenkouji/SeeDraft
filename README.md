@@ -1,7 +1,8 @@
 <p align="center">
     <img src="images/SeeDraft-icon_128x128.png" alt="SeeDraft logo">
 </p>
-<p align="center">Local-first, privacy-friendly voice-to-text for Windows. Record, transcribe, refine, translate, connect, and draft with on-device AI.</p>
+<p align="center">Local-first, privacy-friendly voice-to-text for Windows.</p>
+<p align="center">Record, transcribe, refine, translate, connect, and draft with on-device AI.</p>
 
 # SeeDraft
 
@@ -26,13 +27,13 @@ No API keys are required for SeeDraft itself. During development, model executio
 
 ### Recording And Transcription
 
-- Record from the microphone, drag and drop audio files, or use press-and-hold dictation from anywhere on Windows.
+- Record from the microphone, capture PC playback audio, drag and drop audio files, or use press-and-hold dictation from anywhere on Windows.
 - Supported file extensions include `wav`, `mp3`, `m4a`, `mp4`, `webm`, `ogg`, `flac`, `aac`, and `opus`.
 - Choose a Whisper speech model from the Models tab. The default is `whisper-tiny`.
 - Add a transcription prompt with meeting topics, speaker names, terminology, or spelling rules.
 - Track model downloads with Server-Sent Events, including progress, failure diagnostics, variant details, and runtime compatibility.
 - Warm up the selected speech model after startup so the first transcription request avoids the model-load cost.
-- Normalize uploaded audio on the backend with Symphonia when needed; microphone recordings are converted in the browser to WAV.
+- Normalize uploaded audio on the backend with Symphonia when needed; microphone recordings are converted in the browser to WAV, and PC playback audio is captured through Windows WASAPI loopback.
 
 ### Post-Processing Pipeline
 
@@ -56,7 +57,7 @@ No API keys are required for SeeDraft itself. During development, model executio
 ### Live Captions
 
 - Start a live-caption session from the top bar or a shortcut.
-- Buffer microphone audio continuously and transcribe utterances after pauses.
+- Buffer microphone or PC playback audio continuously and transcribe utterances after pauses.
 - Optionally translate live captions while the session is running.
 - Save, rename, view, and delete live-caption sessions.
 
@@ -85,6 +86,7 @@ No API keys are required for SeeDraft itself. During development, model executio
 │  ├─ /api/process                    pipeline steps     │
 │  ├─ /api/refine, /api/translate     single-step LLM    │
 │  ├─ /api/analyze, /api/complete     extract/complete   │
+│  ├─ /api/system-audio/*             WASAPI loopback    │
 │  ├─ /api/models/*, /api/download/*  model management   │
 │  ├─ /api/app/*, /api/locales        app settings       │
 │  ├─ /api/projects, /api/notes       SQLite notes       │
@@ -179,6 +181,7 @@ Installer artifacts are written under `target/release/bundle/`. During the build
 | Action | Where |
 |---|---|
 | Start / stop recording | Record button at the bottom, or shortcut |
+| Switch input source | Input selector beside the record button |
 | Press-and-hold dictation | Default global shortcut: `RightCtrl` |
 | Transcribe an audio file | Drag and drop onto the app window |
 | Save current text as a note | `Save as note` / `ノートに追加` button |

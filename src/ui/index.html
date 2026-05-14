@@ -167,6 +167,13 @@
                                                 </label>
                                             </span>
                                         </div>
+                                        <label class="input-source-control" for="inputSource">
+                                            <span data-i18n="input.source">入力</span>
+                                            <select id="inputSource" data-i18n-title="input.source" title="入力">
+                                                <option value="microphone" data-i18n="input.source.microphone">マイク</option>
+                                                <option value="system" data-i18n="input.source.system">PC音声</option>
+                                            </select>
+                                        </label>
                                         <div class="record-button-wrap">
                                             <div class="record-progress-ring" id="recordProgressRing" aria-hidden="true"></div>
                                             <button id="recordButton" class="record-button" type="button">
@@ -650,6 +657,11 @@
                             </aside>
                             <main class="live-main">
                                 <div class="live-config-row" id="liveConfigRow">
+                                    <label class="field-label-inline" for="liveInputSource" data-i18n="live.inputSource">入力</label>
+                                    <select id="liveInputSource" class="language-inline">
+                                        <option value="microphone" data-i18n="input.source.microphone">マイク</option>
+                                        <option value="system" data-i18n="input.source.system">PC音声</option>
+                                    </select>
                                     <label class="field-label-inline" data-i18n="live.sourceLanguage">原言語</label>
                                     <select id="liveSourceLanguage" class="language-inline">
                                         <option value="" data-i18n="settings.transcription.auto">自動判定</option>
@@ -804,6 +816,9 @@
                             "button.choose": "選択",
                             "button.record.start": "録音開始",
                             "button.record.stop": "録音停止",
+                            "input.source": "入力",
+                            "input.source.microphone": "マイク",
+                            "input.source.system": "PC音声",
                             "status.idle": "待機中",
                             "error.title": "エラー",
                             "requirements.title": "実行環境の準備が必要です",
@@ -885,6 +900,9 @@
                             "status.noProject": "プロジェクトが選択されていません",
                             "record.ready": "準備完了",
                             "record.recording": "録音中...",
+                            "record.systemAudioRecording": "PC音声を録音中...",
+                            "record.systemAudioStopping": "PC音声を保存中...",
+                            "record.systemAudioCaptured": "PC音声を録音しました ({size} KB)",
                             "record.completed": "録音完了 ({size} KB)",
                             "record.processing": "{name} を処理中...",
                             "record.done": "完了: {name}",
@@ -1157,6 +1175,7 @@
                             "draft.summary": "{count}件のノートから合成",
                             "live.title": "🎬 ライブ字幕",
                             "live.savedSessions": "保存済みセッション",
+                            "live.inputSource": "入力",
                             "live.sourceLanguage": "原言語",
                             "live.targetLanguage": "訳先",
                             "live.enableTranslation": "同時翻訳",
@@ -1178,6 +1197,7 @@
                             "live.summary": "{count}件のセグメント / {duration}",
                             "live.startFailed": "ライブ字幕を開始できませんでした",
                             "live.micError": "マイクにアクセスできません",
+                            "live.systemAudioError": "PC音声を取得できません",
                             "live.deleteConfirm": "このライブセッションを削除しますか？",
                             "live.empty": "セッションに字幕がありませんでした",
                             "history.title": "ノート",
@@ -1282,6 +1302,9 @@
                             "button.choose": "Choose",
                             "button.record.start": "Start Recording",
                             "button.record.stop": "Stop Recording",
+                            "input.source": "Input",
+                            "input.source.microphone": "Microphone",
+                            "input.source.system": "PC audio",
                             "status.idle": "Idle",
                             "error.title": "Error",
                             "requirements.title": "Runtime setup required",
@@ -1363,6 +1386,9 @@
                             "status.noProject": "No project selected",
                             "record.ready": "Ready",
                             "record.recording": "Recording...",
+                            "record.systemAudioRecording": "Capturing PC audio...",
+                            "record.systemAudioStopping": "Finalizing PC audio...",
+                            "record.systemAudioCaptured": "PC audio captured ({size} KB)",
                             "record.completed": "Recording complete ({size} KB)",
                             "record.processing": "Processing {name}...",
                             "record.done": "Done: {name}",
@@ -1635,6 +1661,7 @@
                             "draft.summary": "Composed from {count} notes",
                             "live.title": "🎬 Live Caption",
                             "live.savedSessions": "Saved sessions",
+                            "live.inputSource": "Input",
                             "live.sourceLanguage": "Source",
                             "live.targetLanguage": "Target",
                             "live.enableTranslation": "Live translate",
@@ -1656,6 +1683,7 @@
                             "live.summary": "{count} segments / {duration}",
                             "live.startFailed": "Failed to start live caption",
                             "live.micError": "Microphone unavailable",
+                            "live.systemAudioError": "PC audio capture unavailable",
                             "live.deleteConfirm": "Delete this live session?",
                             "live.empty": "No captions were captured in this session",
                             "history.title": "Notes",
@@ -1888,6 +1916,7 @@
                     const SPEECH_MODEL_STORAGE_KEY = "seedraft_speech_model";
                     const MAX_RECORDING_SECONDS_KEY = "seedraft_max_recording_seconds";
                     const MICROPHONE_DEVICE_KEY = "seedraft_microphone_device_id";
+                    const INPUT_SOURCE_KEY = "seedraft_input_source";
                     const DEFAULT_SPEECH_MODEL_ALIAS = "whisper-tiny";
                     const DEFAULT_CHAT_MODEL_ALIAS = "qwen2.5-coder-0.5b";
                     // Per-post-processing-step LLM selection.
@@ -1987,6 +2016,7 @@
                     const requirementsPrimaryButton = document.getElementById("requirementsPrimaryButton");
                     const requirementsModelsButton = document.getElementById("requirementsModelsButton");
                     const requirementsBannerClose = document.getElementById("requirementsBannerClose");
+                    const inputSource = document.getElementById("inputSource");
                     const openSettingsButton = document.getElementById("openSettingsButton");
                     const recordButton = document.getElementById("recordButton");
                     const recordProgressRing = document.getElementById("recordProgressRing");
@@ -2155,6 +2185,7 @@
                     const liveEmptyMessage = document.getElementById("liveEmptyMessage");
                     const liveCurrentSource = document.getElementById("liveCurrentSource");
                     const liveCurrentTranslation = document.getElementById("liveCurrentTranslation");
+                    const liveInputSource = document.getElementById("liveInputSource");
                     const liveSourceLanguage = document.getElementById("liveSourceLanguage");
                     const liveTargetLanguage = document.getElementById("liveTargetLanguage");
                     const liveTranslateToggle = document.getElementById("liveTranslateToggle");
@@ -2173,6 +2204,8 @@
 
                     let currentText = "";
                     let mediaRecorder = null;
+                    let systemAudioRecording = false;
+                    let systemAudioStopping = false;
                     let recordedBlob = null;
                     let recordedFileName = "recording.webm";
                     let recordedChunks = [];
@@ -2244,6 +2277,25 @@
                     // in settings still re-requests a matching stream.
                     let cachedMicStream = null;
                     let cachedMicConstraintsKey = "";
+
+                    const loadInputSourcePreference = () => {
+                        try {
+                            const value = localStorage.getItem(INPUT_SOURCE_KEY);
+                            return value === "system" ? "system" : "microphone";
+                        } catch {
+                            return "microphone";
+                        }
+                    };
+
+                    const saveInputSourcePreference = () => {
+                        if (!inputSource) return;
+                        try {
+                            localStorage.setItem(INPUT_SOURCE_KEY, inputSource.value || "microphone");
+                        } catch {}
+                    };
+
+                    const selectedInputSource = () =>
+                        inputSource?.value === "system" ? "system" : "microphone";
 
                     const loadMicrophonePreference = () => {
                         try {
@@ -2522,7 +2574,9 @@
                     };
 
                     const syncMicMonitorForSettings = async () => {
-                        const shouldRun = !settingsModal.hidden && activeSettingsTab() === "transcription";
+                        const shouldRun = !settingsModal.hidden
+                            && activeSettingsTab() === "transcription"
+                            && selectedInputSource() === "microphone";
                         if (!shouldRun) {
                             await stopMicMonitor();
                             return;
@@ -3450,7 +3504,7 @@
                         recordButton.disabled = locked;
                         openSettingsButton.disabled = locked;
                         if (typeof setCaptionEditable === "function") {
-                            setCaptionEditable(!locked && !mediaRecorder);
+                            setCaptionEditable(!locked && !mediaRecorder && !systemAudioRecording);
                         }
                     };
 
@@ -3685,9 +3739,9 @@
                     };
 
                     const setBusy = (busy) => {
-                        recordButton.disabled = (busy && !mediaRecorder) || isDownloading || isSpeechWarmupRunning;
+                        recordButton.disabled = (busy && !mediaRecorder && !systemAudioRecording) || isDownloading || isSpeechWarmupRunning;
                         openSettingsButton.disabled = busy || isDownloading || isSpeechWarmupRunning;
-                        setCaptionEditable(!busy && !mediaRecorder && !isDownloading && !isSpeechWarmupRunning);
+                        setCaptionEditable(!busy && !mediaRecorder && !systemAudioRecording && !isDownloading && !isSpeechWarmupRunning);
                     };
 
                     // Post-processing configuration is driven by the quick toggles next to the
@@ -5676,6 +5730,7 @@
                     const saveLiveCaptionPrefs = () => {
                         try {
                             localStorage.setItem(LIVE_PREFS_KEY, JSON.stringify({
+                                inputSource: liveInputSource?.value || "microphone",
                                 sourceLanguage: liveSourceLanguage?.value || "",
                                 targetLanguage: liveTargetLanguage?.value || "",
                                 translate: !!liveTranslateToggle?.checked,
@@ -5687,6 +5742,9 @@
 
                     const restoreLiveCaptionPrefs = () => {
                         const prefs = loadLiveCaptionPrefs();
+                        if (liveInputSource) {
+                            liveInputSource.value = prefs.inputSource === "system" ? "system" : "microphone";
+                        }
                         if (typeof prefs.sourceLanguage === "string" && optionExists(liveSourceLanguage, prefs.sourceLanguage)) {
                             liveSourceLanguage.value = prefs.sourceLanguage;
                         } else if (liveSourceLanguage) {
@@ -5699,6 +5757,9 @@
                             liveTranslateToggle.checked = prefs.translate;
                         }
                     };
+
+                    const selectedLiveInputSource = () =>
+                        liveInputSource?.value === "system" ? "system" : "microphone";
 
                     const getSavedLiveSpeechModel = () => {
                         const prefs = loadLiveCaptionPrefs();
@@ -6634,6 +6695,47 @@
                         }
                     };
 
+                    const ingestLivePcm = (state, down) => {
+                        if (!state || !down?.length) return;
+                        let energy = 0;
+                        for (const sample of down) {
+                            energy += sample * sample;
+                        }
+                        const chunkStart = state.totalSamples;
+                        const chunkEnd = chunkStart + down.length;
+                        const rms = Math.sqrt(energy / down.length);
+                        state.audioChunks.push({ start: chunkStart, data: down });
+                        state.totalSamples += down.length;
+                        updateLiveUtteranceState(state, chunkStart, chunkEnd, rms);
+                    };
+
+                    const resampleFloat32 = (input, sourceRate, targetRate = LIVE_SAMPLE_RATE) => {
+                        const ratio = sourceRate / targetRate;
+                        const outLen = Math.floor(input.length / ratio);
+                        if (outLen <= 0) return new Float32Array(0);
+                        const down = new Float32Array(outLen);
+                        for (let i = 0; i < outLen; i++) {
+                            const srcPos = i * ratio;
+                            const idx = Math.floor(srcPos);
+                            const frac = srcPos - idx;
+                            const a = input[idx] || 0;
+                            const b = input[Math.min(idx + 1, input.length - 1)] || 0;
+                            down[i] = a + (b - a) * frac;
+                        }
+                        return down;
+                    };
+
+                    const pcm16BytesToFloat32 = (arrayBuffer) => {
+                        const view = new DataView(arrayBuffer);
+                        const sampleCount = Math.floor(view.byteLength / 2);
+                        const out = new Float32Array(sampleCount);
+                        for (let i = 0; i < sampleCount; i++) {
+                            const sample = view.getInt16(i * 2, true);
+                            out[i] = sample < 0 ? sample / 0x8000 : sample / 0x7FFF;
+                        }
+                        return out;
+                    };
+
                     const drainLiveChunkQueue = async (state) => {
                         if (!state || state.chunkSending) return;
                         state.chunkSending = true;
@@ -6709,6 +6811,81 @@
                         }
                     };
 
+                    const startLiveMicCapture = async (state) => {
+                        const stream = await getMicStream(buildMicAudioConstraints());
+                        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        const source = audioCtx.createMediaStreamSource(stream);
+                        const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+                        const sourceRate = audioCtx.sampleRate;
+
+                        processor.onaudioprocess = (event) => {
+                            const current = liveState;
+                            if (!current || current !== state || current.processor !== processor) return;
+                            const input = event.inputBuffer.getChannelData(0);
+                            ingestLivePcm(current, resampleFloat32(input, sourceRate));
+                        };
+
+                        source.connect(processor);
+                        processor.connect(audioCtx.destination);
+
+                        state.audioCtx = audioCtx;
+                        state.source = source;
+                        state.processor = processor;
+                        state.stream = stream;
+                    };
+
+                    const startLiveSystemAudioCapture = async (state) => {
+                        const response = await fetch("/api/system-audio/start", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ max_seconds: 7200 })
+                        });
+                        if (!response.ok) {
+                            throw new Error(await readErrorPayload(response, t("live.systemAudioError")));
+                        }
+
+                        state.systemAudioActive = true;
+                        state.systemAudioDrainInterval = setInterval(async () => {
+                            const current = liveState;
+                            if (!current || current !== state || current.stopping || current.systemAudioDraining) return;
+                            current.systemAudioDraining = true;
+                            try {
+                                const drainResp = await fetch("/api/system-audio/drain", { method: "POST" });
+                                if (!drainResp.ok) {
+                                    throw new Error(await readErrorPayload(drainResp, t("live.systemAudioError")));
+                                }
+                                const sampleRate = Number(drainResp.headers.get("X-SeeDraft-Sample-Rate")) || LIVE_SAMPLE_RATE;
+                                const bytes = await drainResp.arrayBuffer();
+                                if (bytes.byteLength === 0) return;
+                                const pcm = pcm16BytesToFloat32(bytes);
+                                ingestLivePcm(current, sampleRate === LIVE_SAMPLE_RATE
+                                    ? pcm
+                                    : resampleFloat32(pcm, sampleRate));
+                            } catch (error) {
+                                console.warn("live system audio drain failed", error);
+                            } finally {
+                                current.systemAudioDraining = false;
+                            }
+                        }, 250);
+                    };
+
+                    const drainLiveSystemAudioOnce = async (state) => {
+                        if (!state?.systemAudioActive) return;
+                        try {
+                            const drainResp = await fetch("/api/system-audio/drain", { method: "POST" });
+                            if (!drainResp.ok) return;
+                            const sampleRate = Number(drainResp.headers.get("X-SeeDraft-Sample-Rate")) || LIVE_SAMPLE_RATE;
+                            const bytes = await drainResp.arrayBuffer();
+                            if (bytes.byteLength === 0) return;
+                            const pcm = pcm16BytesToFloat32(bytes);
+                            ingestLivePcm(state, sampleRate === LIVE_SAMPLE_RATE
+                                ? pcm
+                                : resampleFloat32(pcm, sampleRate));
+                        } catch (error) {
+                            console.warn("live system audio final drain failed", error);
+                        }
+                    };
+
                     const startLiveSession = async () => {
                         if (liveState) return;
                         setLiveActionButtonState({ recording: false, disabled: true });
@@ -6731,16 +6908,16 @@
                             }
                             const startJson = await startResp.json();
 
-                            const stream = await getMicStream(buildMicAudioConstraints());
-                            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                            const source = audioCtx.createMediaStreamSource(stream);
-                            const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-                            const sourceRate = audioCtx.sampleRate;
-                            const resampleRatio = sourceRate / LIVE_SAMPLE_RATE;
-
                             liveState = {
                                 sessionId: startJson.session_id,
-                                audioCtx, source, processor, stream,
+                                inputSource: selectedLiveInputSource(),
+                                audioCtx: null,
+                                source: null,
+                                processor: null,
+                                stream: null,
+                                systemAudioActive: false,
+                                systemAudioDrainInterval: null,
+                                systemAudioDraining: false,
                                 startedAt: Date.now(),
                                 audioChunks: [],
                                 totalSamples: 0,
@@ -6759,34 +6936,11 @@
                                 segments: []
                             };
 
-                            processor.onaudioprocess = (event) => {
-                                const state = liveState;
-                                if (!state || state.processor !== processor) return;
-                                const input = event.inputBuffer.getChannelData(0);
-                                const outLen = Math.floor(input.length / resampleRatio);
-                                if (outLen <= 0) return;
-                                const down = new Float32Array(outLen);
-                                let energy = 0;
-                                for (let i = 0; i < outLen; i++) {
-                                    const srcPos = i * resampleRatio;
-                                    const idx = Math.floor(srcPos);
-                                    const frac = srcPos - idx;
-                                    const a = input[idx] || 0;
-                                    const b = input[Math.min(idx + 1, input.length - 1)] || 0;
-                                    const sample = a + (b - a) * frac;
-                                    down[i] = sample;
-                                    energy += sample * sample;
-                                }
-                                const chunkStart = state.totalSamples;
-                                const chunkEnd = chunkStart + down.length;
-                                const rms = Math.sqrt(energy / down.length);
-                                state.audioChunks.push({ start: chunkStart, data: down });
-                                state.totalSamples += down.length;
-                                updateLiveUtteranceState(state, chunkStart, chunkEnd, rms);
-                            };
-
-                            source.connect(processor);
-                            processor.connect(audioCtx.destination);
+                            if (liveState.inputSource === "system") {
+                                await startLiveSystemAudioCapture(liveState);
+                            } else {
+                                await startLiveMicCapture(liveState);
+                            }
 
                             // Timer loop; caption chunks are queued by speech/silence detection.
                             const tick = async () => {
@@ -6805,6 +6959,18 @@
                             updateLiveCurrent(null);
                         } catch (error) {
                             console.error("live start failed", error);
+                            const failedState = liveState;
+                            if (failedState?.systemAudioActive) {
+                                fetch("/api/system-audio/cancel", { method: "POST" }).catch(() => {});
+                            }
+                            if (failedState?.sessionId) {
+                                fetch("/api/live/stop", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ session_id: failedState.sessionId, save: false })
+                                }).catch(() => {});
+                            }
+                            liveState = null;
                             showErrorBanner((error && error.message) || t("live.micError"));
                             setLiveActionButtonState({ recording: false, disabled: false });
                         }
@@ -6817,12 +6983,21 @@
                         setLiveActionButtonState({ recording: true, disabled: true });
 
                         if (state.timerInterval) clearInterval(state.timerInterval);
-                        try { state.processor.disconnect(); } catch {}
-                        try { state.source.disconnect(); } catch {}
+                        if (state.systemAudioDrainInterval) clearInterval(state.systemAudioDrainInterval);
+                        try { state.processor?.disconnect(); } catch {}
+                        try { state.source?.disconnect(); } catch {}
                         // Keep the mic stream alive (cachedMicStream) so re-starting
                         // doesn't re-prompt for permission. The AudioContext closes
                         // below will release the per-session processor nodes.
-                        try { await state.audioCtx.close(); } catch {}
+                        try { await state.audioCtx?.close?.(); } catch {}
+                        if (state.systemAudioActive) {
+                            await drainLiveSystemAudioOnce(state);
+                            try {
+                                await fetch("/api/system-audio/cancel", { method: "POST" });
+                            } catch (error) {
+                                console.warn("live system audio cancel failed", error);
+                            }
+                        }
                         queueLiveUtterance(state, true);
                         await waitForLiveChunkQueue(state, 5000);
                         clearLiveTranslationFlushTimer(state);
@@ -6903,7 +7078,7 @@
                             startLiveSession();
                         }
                     });
-                    [liveSourceLanguage, liveTargetLanguage, liveTranslateToggle, liveSpeechModel, liveTranslateModel].forEach((el) => {
+                    [liveInputSource, liveSourceLanguage, liveTargetLanguage, liveTranslateToggle, liveSpeechModel, liveTranslateModel].forEach((el) => {
                         el?.addEventListener("change", () => {
                             saveLiveCaptionPrefs();
                             updateLiveModelDisplay();
@@ -7082,6 +7257,18 @@
                     restoreMaxRecordingSeconds();
                     maxRecordingSeconds?.addEventListener("change", saveMaxRecordingSeconds);
                     maxRecordingSeconds?.addEventListener("input", saveMaxRecordingSeconds);
+
+                    if (inputSource) {
+                        inputSource.value = loadInputSourcePreference();
+                        inputSource.addEventListener("change", () => {
+                            saveInputSourcePreference();
+                            if (inputSource.value === "system") {
+                                stopMicMonitor().catch(() => {});
+                            } else {
+                                syncMicMonitorForSettings().catch(() => {});
+                            }
+                        });
+                    }
 
                     populateMicrophoneDevices().catch(() => {});
                     syncMicMonitorLabels();
@@ -8163,18 +8350,122 @@
                         }
                     });
 
+                    const readErrorPayload = async (response, fallback) => {
+                        const rawBody = await response.text().catch(() => "");
+                        if (!rawBody) return fallback;
+                        try {
+                            const payload = JSON.parse(rawBody);
+                            return payload.error || fallback;
+                        } catch {
+                            return rawBody || fallback;
+                        }
+                    };
+
+                    const resetRecordButtonState = () => {
+                        const recordLabel = recordButton.querySelector(".record-label");
+                        recordLabel.textContent = t("button.record.start");
+                        recordButton.dataset.recording = "false";
+                    };
+
+                    const startSystemAudioRecording = async () => {
+                        if (systemAudioRecording || systemAudioStopping) return;
+                        const maxSeconds = Number(maxRecordingSeconds.value);
+                        const max_seconds = Number.isFinite(maxSeconds) && maxSeconds > 0
+                            ? Math.round(maxSeconds)
+                            : null;
+
+                        const response = await fetch("/api/system-audio/start", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ max_seconds })
+                        });
+                        if (!response.ok) {
+                            throw new Error(await readErrorPayload(response, t("status.micUnavailable")));
+                        }
+
+                        systemAudioRecording = true;
+                        recordedBlob = null;
+                        recordedFileName = "system-audio.wav";
+                        audioFile.value = "";
+
+                        const recordLabel = recordButton.querySelector(".record-label");
+                        recordLabel.textContent = t("button.record.stop");
+                        recordButton.dataset.recording = "true";
+                        setRecordInfo(t("record.systemAudioRecording"));
+                        setStatus(t("status.recording"), "busy");
+
+                        if (max_seconds) {
+                            startRecordCountdown(max_seconds);
+                            recordingTimer = setTimeout(() => {
+                                if (systemAudioRecording && !systemAudioStopping) {
+                                    setStatus(t("status.recordingLimit"), "busy");
+                                    stopSystemAudioRecording();
+                                }
+                            }, max_seconds * 1000);
+                        }
+                    };
+
+                    async function stopSystemAudioRecording() {
+                        if (!systemAudioRecording || systemAudioStopping) return;
+                        systemAudioStopping = true;
+                        if (recordingTimer) {
+                            clearTimeout(recordingTimer);
+                            recordingTimer = null;
+                        }
+                        stopRecordCountdown();
+                        setStatus(t("status.processing"), "busy");
+                        setRecordInfo(t("record.systemAudioStopping"));
+
+                        try {
+                            const response = await fetch("/api/system-audio/stop", { method: "POST" });
+                            if (!response.ok) {
+                                throw new Error(await readErrorPayload(response, t("record.failedTranscribe")));
+                            }
+                            const blob = await response.blob();
+                            if (!blob.size) {
+                                throw new Error(t("record.needAudio"));
+                            }
+                            recordedBlob = blob;
+                            recordedFileName = "system-audio.wav";
+                            const sizeKB = Math.round(blob.size / 1024);
+                            setRecordInfo(t("record.systemAudioCaptured", { size: sizeKB }));
+                            setStatus(t("status.transcribingStart"), "busy");
+                            systemAudioRecording = false;
+                            systemAudioStopping = false;
+                            resetRecordButtonState();
+                            await transcribeAudio(blob, "system-audio.wav");
+                        } catch (error) {
+                            console.error("system audio capture failed", error);
+                            systemAudioRecording = false;
+                            systemAudioStopping = false;
+                            resetRecordButtonState();
+                            setStatus(t("status.error"), "error");
+                            setRecordInfo((error && error.message) || t("record.failedTranscribe"));
+                            showErrorBanner((error && error.message) || t("record.failedTranscribe"));
+                            fetch("/api/system-audio/cancel", { method: "POST" }).catch(() => {});
+                        }
+                    }
+
                     recordButton.addEventListener("click", async () => {
+                        if (systemAudioRecording || systemAudioStopping) {
+                            await stopSystemAudioRecording();
+                            return;
+                        }
+
                         if (mediaRecorder && mediaRecorder.state === "recording") {
                             mediaRecorder.stop();
                             setStatus(t("status.processing"), "busy");
-                            const recordLabel = recordButton.querySelector(".record-label");
-                            recordLabel.textContent = t("button.record.start");
-                            recordButton.dataset.recording = "false";
+                            resetRecordButtonState();
                             stopRecordCountdown();
                             return;
                         }
 
                         try {
+                            if (selectedInputSource() === "system") {
+                                await startSystemAudioRecording();
+                                return;
+                            }
+
                             if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
                                 throw new Error(t("status.micUnavailable"));
                             }
@@ -8205,7 +8496,7 @@
                                 // recordings don't re-trigger the permission prompt.
                                 mediaRecorder = null;
                                 audioFile.value = "";
-                                recordButton.dataset.recording = "false";
+                                resetRecordButtonState();
 
                                 try {
                                     recordedBlob = await convertBlobToWav(rawBlob);
@@ -11356,6 +11647,29 @@
                     font-size: 0.85rem;
                 }
 
+                .input-source-control {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-self: center;
+                    gap: 6px;
+                    padding: 4px 8px;
+                    border: 1px solid var(--border-default);
+                    border-radius: 8px;
+                    background: var(--bg-surface);
+                    color: var(--text-muted);
+                    font-size: 0.78rem;
+                    font-weight: 700;
+                    white-space: nowrap;
+                }
+
+                .input-source-control select {
+                    min-width: 92px;
+                    height: 28px;
+                    padding: 2px 8px;
+                    border-radius: 6px;
+                    font-size: 0.78rem;
+                }
+
                 /* Custom step management */
                 .postprocess-section-header {
                     display: flex;
@@ -12581,7 +12895,7 @@
                 /* Control bar - center-aligned record CTA */
                 .control-bar {
                     display: grid;
-                    grid-template-columns: 1fr auto 1fr;
+                    grid-template-columns: auto minmax(0, 1fr) auto auto;
                     align-items: center;
                     gap: 16px;
                     padding: 14px 20px;
@@ -12595,7 +12909,7 @@
                 .record-button-wrap {
                     position: relative;
                     display: inline-flex;
-                    justify-self: center;
+                    justify-self: end;
                 }
 
                 /* Countdown ring that depletes as the recording approaches the

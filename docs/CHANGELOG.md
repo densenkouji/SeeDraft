@@ -3,6 +3,11 @@
 ## [Unreleased] - 2026-05-10
 
 ### Added
+- **システム音声キャプチャ機能** (`/api/system-audio/*`)
+  - Windows WASAPI loopback により、PC上で再生されている音声を追加アプリなしで録音
+  - メイン画面とライブ字幕の入力ソースで `マイク` / `PC音声` を切り替え
+  - 停止時にWAVを生成し、既存の文字起こしAPIへ接続
+
 - **パイプライン処理API** (`POST /api/process`)
   - 複数の後処理ステップを1回のリクエストで実行
   - `refine`（整形）と `translate`（翻訳）を自由に組み合わせ可能

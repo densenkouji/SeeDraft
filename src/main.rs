@@ -3,12 +3,14 @@
 mod desktop;
 mod settings;
 mod storage;
+mod system_audio;
 mod views;
 
 use axum::{
     Json, Router,
+    body::Body,
     extract::{DefaultBodyLimit, Multipart, Path as AxumPath, Query, State},
-    http::StatusCode,
+    http::{StatusCode, header},
     response::{IntoResponse, Response, Sse, sse::Event},
     routing::{delete, get, post, put},
 };
@@ -128,6 +130,7 @@ struct AppState {
     voice_to_text: Arc<VoiceToTextService>,
     storage: Arc<Storage>,
     live_sessions: Arc<tokio::sync::Mutex<HashMap<String, LiveSessionState>>>,
+    system_audio: Arc<system_audio::SystemAudioCaptureManager>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1576,6 +1579,16 @@ struct TranscriptionResponse {
 }
 
 #[derive(Deserialize)]
+struct SystemAudioStartRequest {
+    max_seconds: Option<u32>,
+}
+
+#[derive(Serialize)]
+struct SystemAudioCancelResponse {
+    cancelled: bool,
+}
+
+#[derive(Deserialize)]
 struct RefinementRequest {
     text: String,
     custom_instruction: Option<String>,
@@ -1920,6 +1933,69 @@ async fn transcribe_handler(
         duration: transcription.duration,
         note_id,
         project_id: project_id_for_response,
+    }))
+}
+
+async fn system_audio_status_handler(
+    State(state): State<AppState>,
+) -> AppResult<Json<system_audio::SystemAudioCaptureStatus>> {
+    Ok(Json(state.system_audio.status().await))
+}
+
+async fn system_audio_start_handler(
+    State(state): State<AppState>,
+    Json(request): Json<SystemAudioStartRequest>,
+) -> AppResult<Json<system_audio::SystemAudioStartResponse>> {
+    let max_seconds = request.max_seconds.map(|seconds| seconds.clamp(1, 7200));
+    state
+        .system_audio
+        .start(max_seconds)
+        .await
+        .map(Json)
+        .map_err(AppError::internal)
+}
+
+async fn system_audio_stop_handler(State(state): State<AppState>) -> AppResult<Response> {
+    let wav = state
+        .system_audio
+        .stop()
+        .await
+        .map_err(AppError::bad_request)?;
+    Response::builder()
+        .header(header::CONTENT_TYPE, "audio/wav")
+        .header(
+            header::CONTENT_DISPOSITION,
+            "attachment; filename=\"system-audio.wav\"",
+        )
+        .header("X-SeeDraft-Sample-Rate", wav.sample_rate.to_string())
+        .header("X-SeeDraft-Sample-Count", wav.sample_count.to_string())
+        .header(
+            "X-SeeDraft-Duration-Seconds",
+            format!("{:.3}", wav.duration_seconds),
+        )
+        .body(Body::from(wav.bytes))
+        .map_err(AppError::internal)
+}
+
+async fn system_audio_drain_handler(State(state): State<AppState>) -> AppResult<Response> {
+    let chunk = state
+        .system_audio
+        .drain()
+        .await
+        .map_err(AppError::bad_request)?;
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/octet-stream")
+        .header("X-SeeDraft-Sample-Rate", chunk.sample_rate.to_string())
+        .header("X-SeeDraft-Sample-Count", chunk.sample_count.to_string())
+        .body(Body::from(chunk.bytes))
+        .map_err(AppError::internal)
+}
+
+async fn system_audio_cancel_handler(
+    State(state): State<AppState>,
+) -> AppResult<Json<SystemAudioCancelResponse>> {
+    Ok(Json(SystemAudioCancelResponse {
+        cancelled: state.system_audio.cancel().await,
     }))
 }
 
@@ -4403,13 +4479,17 @@ fn sanitize_extension(extension: &str) -> String {
 }
 
 fn build_router(voice_to_text: Arc<VoiceToTextService>) -> Router {
-    let storage = Arc::new(
-        Storage::open(settings::storage_db_path()).expect("failed to open storage database"),
-    );
+    let storage_db_path = settings::storage_db_path();
+    if let Some(parent) = storage_db_path.parent() {
+        std::fs::create_dir_all(parent).expect("failed to create storage database directory");
+    }
+    let storage =
+        Arc::new(Storage::open(storage_db_path).expect("failed to open storage database"));
     let state = AppState {
         voice_to_text,
         storage,
         live_sessions: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+        system_audio: Arc::new(system_audio::SystemAudioCaptureManager::new()),
     };
 
     Router::new()
@@ -4423,6 +4503,14 @@ fn build_router(voice_to_text: Arc<VoiceToTextService>) -> Router {
         .route("/api/complete", post(complete_note_handler))
         .route("/api/process", post(process_pipeline_handler))
         .route("/api/transcribe", post(transcribe_handler))
+        .route("/api/system-audio/status", get(system_audio_status_handler))
+        .route("/api/system-audio/start", post(system_audio_start_handler))
+        .route("/api/system-audio/stop", post(system_audio_stop_handler))
+        .route("/api/system-audio/drain", post(system_audio_drain_handler))
+        .route(
+            "/api/system-audio/cancel",
+            post(system_audio_cancel_handler),
+        )
         .route("/api/download/status", get(download_status_handler))
         .route("/api/download/events", get(download_events_handler))
         .route("/api/models/speech", get(speech_models_handler))
