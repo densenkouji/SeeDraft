@@ -85,6 +85,7 @@ cargo tauri build
 - エラーは `expect` / `eprintln!` でシンプルに処理
 - 仕様書は `docs/` 配下に Markdown で管理する
 - 仕様書のステータス: Draft → Review → Approved
+- アプリケーション内部で整形・抽出・翻訳・補完などの LLM プロンプトを組み立てる場合、原則としてプロンプト本文は英語で記述する
 
 ## API Design Philosophy
 

@@ -69,6 +69,10 @@ const SILENCE_ACTIVE_SAMPLE_THRESHOLD: f64 = 0.02;
 const SILENCE_ACTIVE_RATIO_THRESHOLD: f64 = 0.01;
 static FOUNDRY_NATIVE_DIR: OnceLock<PathBuf> = OnceLock::new();
 
+fn is_required_model_alias(alias: &str) -> bool {
+    alias == DEFAULT_SPEECH_MODEL_ALIAS || alias == CHAT_MODEL_ALIAS
+}
+
 fn foundry_config() -> FoundryLocalConfig {
     let mut config = FoundryLocalConfig::new("seedraft");
     if let Some(dir) = FOUNDRY_NATIVE_DIR.get() {
@@ -164,6 +168,7 @@ struct ModelInfo {
     downloaded: bool,
     loaded: bool,
     active: bool,
+    required: bool,
     size_mb: Option<u64>,
     /// Whether at least one variant of this model can run on the current
     /// machine (i.e. its required execution provider is registered, or the
@@ -269,6 +274,10 @@ struct VoiceToTextService {
     speech_models: tokio::sync::Mutex<HashMap<String, Arc<Model>>>,
     speech_model_load_lock: tokio::sync::Mutex<()>,
     active_speech_model: tokio::sync::Mutex<Option<String>>,
+    /// Foundry Local reports progress per download, while the UI shows a
+    /// single progress overlay. Keep model downloads sequential so progress
+    /// events never interleave across aliases.
+    download_lock: tokio::sync::Mutex<()>,
     download_tx: tokio::sync::broadcast::Sender<DownloadEvent>,
     latest_download: tokio::sync::Mutex<DownloadEvent>,
 }
@@ -283,6 +292,7 @@ impl VoiceToTextService {
             speech_models: tokio::sync::Mutex::new(HashMap::new()),
             speech_model_load_lock: tokio::sync::Mutex::new(()),
             active_speech_model: tokio::sync::Mutex::new(None),
+            download_lock: tokio::sync::Mutex::new(()),
             download_tx,
             latest_download: tokio::sync::Mutex::new(DownloadEvent::Idle),
         }
@@ -346,14 +356,16 @@ impl VoiceToTextService {
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .map(|value| format!("\n- 次の専門用語・固有名詞は表記を維持してください: {value}"))
+            .map(|value| {
+                format!("\n- Preserve the spelling of these terms and proper nouns: {value}")
+            })
             .unwrap_or_default();
         let custom_instruction = request
             .custom_instruction
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .map(|value| format!("\n- 追加指示: {value}"))
+            .map(|value| format!("\n- Additional instruction: {value}"))
             .unwrap_or_default();
         let language_guard = refinement_language_guard_instruction(&source_text);
 
@@ -430,7 +442,7 @@ impl VoiceToTextService {
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(|value| {
-                format!("\n- 次の固有名詞・専門用語は可能な限り表記を維持してください: {value}")
+                format!("\n- Preserve these proper nouns and terms as much as possible: {value}")
             })
             .unwrap_or_default();
         let custom_instruction = request
@@ -438,18 +450,18 @@ impl VoiceToTextService {
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .map(|value| format!("\n- 追加指示: {value}"))
+            .map(|value| format!("\n- Additional instruction: {value}"))
             .unwrap_or_default();
 
         let model = self.ensure_chat_model_by_alias(model_alias).await?;
         let client = model.create_chat_client().temperature(0.0).max_tokens(1024);
         let user_prompt = format!(
-            "次の文字起こし結果を翻訳してください。\n\n条件:\n- 入力言語: {source_language}\n- 出力言語: {target_language}\n- 意味を変えないでください。\n- 要約しないでください。\n- 情報を削除したり追加したりしないでください。\n- Live Caption の字幕として読みやすい自然な文にしてください。\n- 前置き、説明、見出し、引用符は出力しないでください。\n- 出力は翻訳本文のみです。{custom_terms}{custom_instruction}\n\n入力:\n{source_text}"
+            "Translate the following transcription.\n\nRules:\n- Source language: {source_language}\n- Target language: {target_language}\n- Preserve the meaning.\n- Do not summarize.\n- Do not remove or add information.\n- Make the result natural and readable as live-caption subtitles.\n- Do not output a preface, explanation, heading, or quotes.\n- Output only the translated body text.{custom_terms}{custom_instruction}\n\nInput:\n{source_text}"
         );
         let mut messages: Vec<ChatCompletionRequestMessage> = Vec::new();
         messages.push(
             ChatCompletionRequestSystemMessage::from(
-                "あなたはリアルタイム字幕向けの翻訳者です。入力の意味と順序を保ち、翻訳本文のみを出力します。",
+                "You are a translator for live captions. Preserve the input meaning and order, and output only the translated body text.",
             )
             .into(),
         );
@@ -622,14 +634,14 @@ impl VoiceToTextService {
         let extra = instruction
             .map(str::trim)
             .filter(|s| !s.is_empty())
-            .map(|s| format!("\n- 追加指示: {s}"))
+            .map(|s| format!("\n- Additional instruction: {s}"))
             .unwrap_or_default();
         let user_prompt = format!(
-            "次の複数のメモを、一貫性のある1本のドキュメントに再構成してください。\n\n条件:\n- 入力と同じ言語で出力。\n- 重複する内容はまとめる。\n- 適切な見出し (#, ##) と段落、箇条書きを使って読みやすく。\n- 入力にない情報は追加しない。\n- メモの順序を尊重しつつ自然な流れに整える。\n- 前置き、説明、コードフェンスは出力しない。\n- 出力は Markdown 本文のみ。{extra}\n\n入力メモ:\n{bodies}"
+            "Reconstruct the following notes into one coherent document.\n\nRules:\n- Output in the same language as the input.\n- Merge duplicate content.\n- Use appropriate Markdown headings (#, ##), paragraphs, and bullet lists for readability.\n- Do not add information that is not present in the input.\n- Respect the note order while creating a natural flow.\n- Do not output a preface, explanation, or code fence.\n- Output only the Markdown body.{extra}\n\nInput notes:\n{bodies}"
         );
         let messages: Vec<ChatCompletionRequestMessage> = vec![
             ChatCompletionRequestSystemMessage::from(
-                "あなたは複数のメモから一貫した記事を構成する編集者です。Markdown本文のみを出力します。",
+                "You are an editor who turns multiple notes into one coherent article. Output only the Markdown body.",
             )
             .into(),
             ChatCompletionRequestUserMessage::from(user_prompt.as_str()).into(),
@@ -681,12 +693,12 @@ impl VoiceToTextService {
             .temperature(0.0)
             .max_tokens(max_tokens.clamp(128, 4096));
         let user_prompt = format!(
-            "次の指示に従って、下記の文章を処理してください。\n\n指示:\n{instruction}\n\n条件:\n- 前置き、説明、コードフェンスは出力しないでください。\n- 出力は処理結果の本文のみ。\n\n入力:\n{source}"
+            "Process the following text according to the instruction.\n\nInstruction:\n{instruction}\n\nRules:\n- Do not output a preface, explanation, or code fence.\n- Output only the processed body text.\n\nInput:\n{source}"
         );
         let mut messages: Vec<ChatCompletionRequestMessage> = Vec::new();
         messages.push(
             ChatCompletionRequestSystemMessage::from(
-                "あなたは文章を指示に沿って処理するエンジンです。処理結果の本文のみを出力します。",
+                "You are a text-processing engine that follows the instruction. Output only the processed body text.",
             )
             .into(),
         );
@@ -726,12 +738,12 @@ impl VoiceToTextService {
         let model = self.ensure_chat_model_by_alias(model_alias).await?;
         let client = model.create_chat_client().temperature(0.0).max_tokens(512);
         let user_prompt = format!(
-            "次のテキストから情報を抽出し、厳密なJSONのみで出力してください。\n\n要件:\n- JSON以外の文字（前置き、説明、コードフェンス）は一切出力しない\n- キーは \"tone\", \"summary\", \"keywords\" の3つ\n- tone: 全体の話し手のトーンを1つの短いラベル（例: 冷静, 熱意, 中立, 疲労, 前向き）\n- summary: 入力と同じ言語で1-2文の要点\n- keywords: 重要語を3〜6個、配列で\n\n入力:\n{source}"
+            "Extract information from the following text and output strict JSON only.\n\nRequirements:\n- Do not output anything outside JSON: no preface, explanation, or code fence.\n- Use exactly these three keys: \"tone\", \"summary\", \"keywords\".\n- tone: one short label for the speaker's overall tone, in the same language as the input.\n- summary: 1-2 sentences summarizing the key points, in the same language as the input.\n- keywords: an array of 3-6 important terms, in the same language as the input where appropriate.\n\nInput:\n{source}"
         );
         let mut messages: Vec<ChatCompletionRequestMessage> = Vec::new();
         messages.push(
             ChatCompletionRequestSystemMessage::from(
-                "あなたは文章からトーン・要点・キーワードを抽出するエンジンです。指定された JSON スキーマに厳密に従い、JSON のみを出力します。",
+                "You extract tone, key points, and keywords from text. Follow the specified JSON schema exactly and output JSON only.",
             )
             .into(),
         );
@@ -783,12 +795,12 @@ impl VoiceToTextService {
         let model = self.ensure_chat_model_by_alias(model_alias).await?;
         let client = model.create_chat_client().temperature(0.4).max_tokens(600);
         let user_prompt = format!(
-            "次のノート本文の続きを書いてください。\n\n条件:\n- 入力本文の文体・言語・トピックを引き継いでください。\n- 既存の本文は絶対に繰り返さないでください。続きの文章のみを出力してください。\n- 前置き（「続きを書きます」「もちろんです」など）、見出し、引用符、コードフェンスは出力しないでください。\n- 事実は控えめに。入力に書かれていない固有名詞・数値を新たに発明しないでください。\n- 関連ノート（システムに添付されている場合）は背景として参考にし、そのまま引き写さないでください。\n- 3〜6文程度で自然に話題をまとめてください。\n\n既存のノート本文:\n{source_text}"
+            "Continue the following note body.\n\nRules:\n- Continue the style, language, and topic of the input body.\n- Never repeat the existing body. Output only the continuation text.\n- Do not output a preface such as \"I will continue\" or \"Sure\", a heading, quotes, or a code fence.\n- Be conservative with facts. Do not invent proper nouns or numbers that are not in the input.\n- If related notes are attached as system context, use them only as background and do not copy them directly.\n- Wrap up the topic naturally in about 3-6 sentences.\n\nExisting note body:\n{source_text}"
         );
         let mut messages: Vec<ChatCompletionRequestMessage> = Vec::new();
         messages.push(
             ChatCompletionRequestSystemMessage::from(
-                "あなたはノートの続きを書くアシスタントです。既存本文の文体と言語を保ち、続きの本文のみを出力します。前置きや説明は出力しません。",
+                "You are an assistant that continues notes. Preserve the existing body's style and language, output only the continuation body, and do not include a preface or explanation.",
             )
             .into(),
         );
@@ -828,11 +840,11 @@ impl VoiceToTextService {
         let model = self.ensure_chat_model().await?;
         let client = model.create_chat_client().temperature(0.0).max_tokens(1024);
         let user_prompt = format!(
-            "次の文字起こし結果を、与えられた文脈に基づいて補正してください。\n\n条件:\n- 明らかな誤認識だけを修正してください。\n- 意味を変えないでください。\n- 要約しないでください。\n- 情報を追加したり削除したりしないでください。\n- 前置き、説明、見出し、引用符は出力しないでください。\n- 出力は補正後の本文のみです。\n\n文脈と指示:\n{context_prompt}\n\n文字起こし:\n{source_text}"
+            "Correct the following transcription using the provided context.\n\nRules:\n- Correct only obvious recognition errors.\n- Preserve the meaning.\n- Do not summarize.\n- Do not add or remove information.\n- Do not output a preface, explanation, heading, or quotes.\n- Output only the corrected body text.\n\nContext and instruction:\n{context_prompt}\n\nTranscription:\n{source_text}"
         );
         let messages: Vec<ChatCompletionRequestMessage> = vec![
             ChatCompletionRequestSystemMessage::from(
-                "あなたは文字起こし結果の表記補正を行う編集者です。文脈を手がかりにしますが、原文にない内容は追加しません。",
+                "You are an editor who corrects transcription wording and notation. Use the context as a clue, but do not add content that is not in the source.",
             )
             .into(),
             ChatCompletionRequestUserMessage::from(user_prompt.as_str()).into(),
@@ -981,6 +993,8 @@ impl VoiceToTextService {
     }
 
     async fn download_model_with_progress(&self, model: &Model, alias: &str) -> AppResult<()> {
+        let _download_guard = self.download_lock.lock().await;
+
         // Ensure we're about to download a variant the native core can actually
         // run — otherwise `gpt-oss-20b` / `qwen3-4b` etc. fail with "Operation
         // was cancelled" on hosts without the matching GPU EP.
@@ -1225,6 +1239,7 @@ impl VoiceToTextService {
 
             let (compatible, incompatibility_reason) =
                 Self::compute_compatibility(model, &registered_eps);
+            let required = is_required_model_alias(&alias);
 
             results.push(ModelInfo {
                 alias,
@@ -1233,6 +1248,7 @@ impl VoiceToTextService {
                 downloaded,
                 loaded: loaded_in_cache,
                 active: is_active,
+                required,
                 size_mb: None,
                 compatible,
                 incompatibility_reason,
@@ -1357,6 +1373,10 @@ impl VoiceToTextService {
     }
 
     async fn delete_model_by_alias(&self, alias: &str) -> AppResult<()> {
+        if is_required_model_alias(alias) {
+            return Err(AppError::bad_request("必須モデルは削除できません"));
+        }
+
         // Refuse to remove an in-use speech model
         if self.active_speech_model.lock().await.as_deref() == Some(alias) {
             return Err(AppError::bad_request(
@@ -1447,6 +1467,10 @@ impl VoiceToTextService {
     }
 
     async fn delete_speech_model(&self, alias: &str) -> AppResult<()> {
+        if is_required_model_alias(alias) {
+            return Err(AppError::bad_request("必須モデルは削除できません"));
+        }
+
         if self.active_speech_model.lock().await.as_deref() == Some(alias) {
             return Err(AppError::bad_request(
                 "使用中のモデルは削除できません。別のモデルを選択してから削除してください",
@@ -3740,14 +3764,14 @@ fn fetch_linked_context(storage: &Storage, note_id: &str) -> Option<String> {
 
         let relation = match (link.direction.as_str(), link.label.as_deref()) {
             ("out", Some(label)) if !label.trim().is_empty() => {
-                format!("このノートから『{}』というリンクで参照", label.trim())
+                format!("Referenced from this note with label \"{}\"", label.trim())
             }
             ("in", Some(label)) if !label.trim().is_empty() => {
-                format!("『{}』として被リンク", label.trim())
+                format!("Backlink to this note with label \"{}\"", label.trim())
             }
-            ("out", _) => "リンク先".to_string(),
-            ("in", _) => "リンク元".to_string(),
-            _ => "関連ノート".to_string(),
+            ("out", _) => "Linked note".to_string(),
+            ("in", _) => "Backlink source".to_string(),
+            _ => "Related note".to_string(),
         };
         let heading = if link.title.trim().is_empty() {
             format!("- [{relation}]")
@@ -3765,7 +3789,7 @@ fn fetch_linked_context(storage: &Storage, note_id: &str) -> Option<String> {
     } else {
         let body = lines.join("\n");
         Some(format!(
-            "参考: このノートに手動でリンクされている関連ノートの抜粋です。LLM の出力を調整する際の背景情報として利用してください（内容をそのまま引き写さないこと）。\n{body}"
+            "Reference: excerpts from notes manually linked to this note. Use them as background when adjusting the LLM output, but do not copy their content directly.\n{body}"
         ))
     }
 }

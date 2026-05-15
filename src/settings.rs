@@ -266,6 +266,14 @@ const OUTDATED_DEFAULTS: &[(&str, &str)] = &[
         "live.chunkHint",
         "Audio is buffered first; translation follows transcription",
     ),
+    (
+        "requirements.modelsPrompt",
+        "必要なモデルを準備しますか？\n{models}",
+    ),
+    (
+        "requirements.modelsPrompt",
+        "Prepare the required models now?\n{models}",
+    ),
 ];
 
 fn merge_missing_keys(path: &std::path::Path, defaults_json: &str) -> Result<(), String> {
