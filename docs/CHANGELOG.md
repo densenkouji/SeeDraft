@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased] - 2026-05-15
+
+### Added
+- **文字起こしテーマ機能**
+  - 設定モーダルに「テーマ」タブを追加。会話の文脈プロンプト・専門用語・整形指示をまとめて1つのテーマとして保存・編集・削除できる
+  - メイン画面のトップバーに「テーマ」セレクターを追加。テーマを選択すると、文字起こし補正用の `transcription_prompt` と後処理の `custom_terms` / `custom_instruction` が一括で切り替わる
+  - 新規 API: `GET/POST /api/themes`、`PUT/DELETE /api/themes/:id`
+  - SQLite に `themes` テーブルを追加（既存DBには起動時に自動マイグレーション）
+  - foundry-local-sdk 自体は Whisper の `initial_prompt` を公開していないため、テーマは後処理 LLM での補正に作用する（Whisper 直接ではない）
+
 ## [Unreleased] - 2026-05-10
 
 ### Added

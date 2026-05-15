@@ -35,7 +35,7 @@ use std::{
 };
 use storage::{
     DraftWithNotes, GraphData, LiveSegment, LiveSession, LiveSessionDetail, Note, NoteLink,
-    NoteWithTags, Project, Storage, Translation,
+    NoteWithTags, Project, Storage, Theme, Translation,
 };
 use symphonia::core::{
     audio::{AudioBufferRef, SampleBuffer},
@@ -2633,6 +2633,91 @@ async fn delete_project_handler(
 }
 
 #[derive(Serialize)]
+struct ThemeListResponse {
+    themes: Vec<Theme>,
+}
+
+#[derive(Deserialize)]
+struct ThemeInput {
+    name: String,
+    description: Option<String>,
+    transcription_prompt: Option<String>,
+    custom_terms: Option<String>,
+    custom_instruction: Option<String>,
+}
+
+fn normalize_theme_field(value: Option<String>) -> Option<String> {
+    value
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+async fn list_themes_handler(
+    State(state): State<AppState>,
+) -> AppResult<Json<ThemeListResponse>> {
+    let themes = state.storage.list_themes()?;
+    Ok(Json(ThemeListResponse { themes }))
+}
+
+async fn create_theme_handler(
+    State(state): State<AppState>,
+    Json(input): Json<ThemeInput>,
+) -> AppResult<Json<Theme>> {
+    let name = input.name.trim();
+    if name.is_empty() {
+        return Err(AppError::bad_request("theme name is required"));
+    }
+    let description = normalize_theme_field(input.description);
+    let transcription_prompt = normalize_theme_field(input.transcription_prompt);
+    let custom_terms = normalize_theme_field(input.custom_terms);
+    let custom_instruction = normalize_theme_field(input.custom_instruction);
+    let theme = state.storage.create_theme(
+        name,
+        description.as_deref(),
+        transcription_prompt.as_deref(),
+        custom_terms.as_deref(),
+        custom_instruction.as_deref(),
+    )?;
+    Ok(Json(theme))
+}
+
+async fn update_theme_handler(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<String>,
+    Json(input): Json<ThemeInput>,
+) -> AppResult<Json<Theme>> {
+    let name = input.name.trim();
+    if name.is_empty() {
+        return Err(AppError::bad_request("theme name is required"));
+    }
+    let description = normalize_theme_field(input.description);
+    let transcription_prompt = normalize_theme_field(input.transcription_prompt);
+    let custom_terms = normalize_theme_field(input.custom_terms);
+    let custom_instruction = normalize_theme_field(input.custom_instruction);
+    state.storage.update_theme(
+        &id,
+        name,
+        description.as_deref(),
+        transcription_prompt.as_deref(),
+        custom_terms.as_deref(),
+        custom_instruction.as_deref(),
+    )?;
+    let theme = state
+        .storage
+        .get_theme(&id)?
+        .ok_or_else(|| AppError::bad_request("theme not found"))?;
+    Ok(Json(theme))
+}
+
+async fn delete_theme_handler(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<String>,
+) -> AppResult<Json<serde_json::Value>> {
+    state.storage.delete_theme(&id)?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+#[derive(Serialize)]
 struct NoteListResponse {
     notes: Vec<NoteWithTags>,
 }
@@ -4878,6 +4963,14 @@ fn build_router(voice_to_text: Arc<VoiceToTextService>) -> Router {
         .route(
             "/api/projects/{id}",
             put(update_project_handler).delete(delete_project_handler),
+        )
+        .route(
+            "/api/themes",
+            get(list_themes_handler).post(create_theme_handler),
+        )
+        .route(
+            "/api/themes/{id}",
+            put(update_theme_handler).delete(delete_theme_handler),
         )
         .route(
             "/api/notes",

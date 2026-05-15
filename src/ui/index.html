@@ -33,6 +33,15 @@
                         <span class="model-badge-icon">🎙</span>
                         <span class="model-badge-label" id="currentModelLabel">whisper-tiny</span>
                     </div>
+                    <label id="currentThemeBadge" class="model-badge theme-badge"
+                        data-i18n-title="settings.themes.selectorTitle" title="文字起こしテーマ">
+                        <span class="model-badge-icon">🎯</span>
+                        <select id="themeSelector" class="topbar-language-select"
+                            data-i18n-title="settings.themes.selectorTitle" title="文字起こしテーマ"
+                            aria-label="Transcription theme">
+                            <option value="" data-i18n="settings.themes.none">テーマなし</option>
+                        </select>
+                    </label>
                     <label id="currentLanguageBadge" class="model-badge language-badge"
                         data-i18n-title="settings.transcription.language" title="認識言語">
                         <span class="model-badge-icon">🌐</span>
@@ -140,24 +149,6 @@
                                     type="button" data-i18n="button.createNote">＋ ノート作成</button>
                             </div>
                         </div>
-                        <div id="captionStats" class="caption-stats" hidden>
-                            <span class="caption-stat">
-                                <span class="caption-stat-icon">📝</span>
-                                <span class="caption-stat-value" id="statChars">0</span>
-                            </span>
-                            <span class="caption-stat">
-                                <span class="caption-stat-icon">💭</span>
-                                <span class="caption-stat-value" id="statFillers">0</span>
-                            </span>
-                            <span class="caption-stat" id="statDurationWrap" hidden>
-                                <span class="caption-stat-icon">⏱</span>
-                                <span class="caption-stat-value" id="statDuration">0s</span>
-                            </span>
-                            <span class="caption-stat" id="statSpeedWrap" hidden>
-                                <span class="caption-stat-icon">⚡</span>
-                                <span class="caption-stat-value" id="statSpeed">0</span>
-                            </span>
-                        </div>
                         <div class="control-bar">
                             <div class="quick-toggles">
                                 <label class="quick-toggle" data-i18n-title="quick.autoSaveTooltip"
@@ -207,14 +198,35 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="record-info" id="recordInfo" data-empty="true" aria-live="polite">
-                            <span class="record-info-icon" aria-hidden="true">i</span>
-                            <span class="record-info-text" id="recordInfoText"
-                                data-i18n="record.infoPlaceholder">メッセージがここに表示されます</span>
-                        </div>
                     </div>
                 </section>
             </div>
+
+            <footer class="status-bar" role="status" aria-live="polite">
+                <div class="record-info status-bar-message" id="recordInfo" data-empty="true">
+                    <span class="record-info-icon" aria-hidden="true">i</span>
+                    <span class="record-info-text" id="recordInfoText"
+                        data-i18n="record.infoPlaceholder">メッセージがここに表示されます</span>
+                </div>
+                <div id="captionStats" class="caption-stats status-bar-stats">
+                    <span class="caption-stat">
+                        <span class="caption-stat-icon">📝</span>
+                        <span class="caption-stat-value" id="statChars">0</span>
+                    </span>
+                    <span class="caption-stat">
+                        <span class="caption-stat-icon">💭</span>
+                        <span class="caption-stat-value" id="statFillers">0</span>
+                    </span>
+                    <span class="caption-stat" id="statDurationWrap" hidden>
+                        <span class="caption-stat-icon">⏱</span>
+                        <span class="caption-stat-value" id="statDuration">0s</span>
+                    </span>
+                    <span class="caption-stat" id="statSpeedWrap" hidden>
+                        <span class="caption-stat-icon">⚡</span>
+                        <span class="caption-stat-value" id="statSpeed">0</span>
+                    </span>
+                </div>
+            </footer>
 
             <div class="drop-overlay" id="dropOverlay">
                 <div class="drop-prompt">
@@ -314,6 +326,8 @@
                 <div class="settings-tabs">
                     <button class="settings-tab-button" type="button" data-tab="transcription" aria-selected="true"
                         data-i18n="settings.tab.transcription">文字起こし</button>
+                    <button class="settings-tab-button" type="button" data-tab="themes"
+                        data-i18n="settings.tab.themes">テーマ</button>
                     <button class="settings-tab-button" type="button" data-tab="postprocess"
                         data-i18n="settings.tab.postprocess">後処理</button>
                     <button class="settings-tab-button" type="button" data-tab="draft"
@@ -388,6 +402,24 @@
                             <option value="44100">44.1 kHz</option>
                             <option value="48000">48 kHz</option>
                         </select>
+                    </div>
+
+                    <div class="settings-panel" data-panel="themes" hidden>
+                        <div class="postprocess-section">
+                            <div class="postprocess-section-header">
+                                <h3 class="section-title" data-i18n="settings.themes.title">テーマ</h3>
+                                <div class="postprocess-section-header-actions">
+                                    <button id="themeImportSamplesButton" class="secondary-button" type="button"
+                                        data-i18n="settings.themes.importSamples">サンプルを追加</button>
+                                    <button id="themeAddButton" class="secondary-button" type="button"
+                                        data-i18n="settings.themes.add">＋ 新規</button>
+                                </div>
+                            </div>
+                            <p class="field-hint" data-i18n="settings.themes.hint">
+                                テーマには会話の文脈、専門用語、整形の追加指示を保存できます。メイン画面からテーマを選ぶと、文字起こし精度の補正と後処理の挙動を一括で切り替えられます。
+                            </p>
+                            <div id="themeList" class="theme-list"></div>
+                        </div>
                     </div>
 
                     <div class="settings-panel" data-panel="postprocess" hidden>
@@ -814,6 +846,11 @@
                             <option value="microphone" data-i18n="input.source.microphone">マイク</option>
                             <option value="system" data-i18n="input.source.system">PC音声</option>
                         </select>
+                        <div class="live-meter" id="liveAudioMeter"
+                            data-i18n-title="live.audioMeter.tooltip" title="音声入力を確認">
+                            <canvas id="liveAudioMeterCanvas" class="live-meter-canvas" width="180" height="32"
+                                aria-label="Live audio waveform"></canvas>
+                        </div>
                         <label class="field-label-inline" data-i18n="live.sourceLanguage">原言語</label>
                         <select id="liveSourceLanguage" class="language-inline">
                             <option value="" data-i18n="settings.transcription.auto">自動判定</option>
@@ -919,6 +956,48 @@
                         hidden>削除</button>
                     <button id="projectEditorSave" class="primary-button" type="button"
                         data-i18n="project.save">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- テーマ編集モーダル -->
+        <div class="note-editor-modal" id="themeEditorModal" hidden>
+            <div class="note-editor-card">
+                <div class="note-editor-header">
+                    <h3 id="themeEditorTitle" data-i18n="settings.themes.editorTitleNew">新しいテーマ</h3>
+                    <button id="themeEditorClose" class="icon-button" type="button">✕</button>
+                </div>
+                <label class="field-label" data-i18n="settings.themes.name">名前</label>
+                <input id="themeEditorName" type="text"
+                    data-i18n-placeholder="settings.themes.namePlaceholder"
+                    placeholder="例: 技術会議" />
+                <label class="field-label" data-i18n="settings.themes.description">メモ（任意）</label>
+                <textarea id="themeEditorDescription" class="small-textarea"
+                    data-i18n-placeholder="settings.themes.descriptionPlaceholder"
+                    placeholder="このテーマをいつ使うかのメモ"></textarea>
+                <label class="field-label" data-i18n="settings.themes.transcriptionPrompt">会話の文脈（文字起こし補正に使用）</label>
+                <textarea id="themeEditorTranscriptionPrompt" class="small-textarea"
+                    data-i18n-placeholder="settings.themes.transcriptionPromptPlaceholder"
+                    placeholder="例: SeeDraft、Foundry Local、axum、Tauri を扱う技術会議の文字起こし"></textarea>
+                <p class="field-hint field-hint-sub" data-i18n="settings.themes.transcriptionPromptHint">
+                    自然文で記述してください。Whisper の文字起こし結果を LLM で補正する際の文脈として渡されます。
+                </p>
+                <label class="field-label" data-i18n="settings.themes.customTerms">専門用語・固有名詞</label>
+                <textarea id="themeEditorCustomTerms" class="small-textarea"
+                    data-i18n-placeholder="settings.themes.customTermsPlaceholder"
+                    placeholder="SeeDraft, Foundry Local, axum"></textarea>
+                <p class="field-hint field-hint-sub" data-i18n="settings.themes.customTermsHint">
+                    カンマ区切り。整形・翻訳の際に綴りが維持されます。
+                </p>
+                <label class="field-label" data-i18n="settings.themes.customInstruction">追加指示（整形）</label>
+                <input id="themeEditorCustomInstruction" type="text"
+                    data-i18n-placeholder="settings.themes.customInstructionPlaceholder"
+                    placeholder="例: 句読点の位置を自然に" />
+                <div class="note-editor-actions">
+                    <button id="themeEditorDelete" class="danger-button" type="button"
+                        data-i18n="settings.themes.delete" hidden>削除</button>
+                    <button id="themeEditorSave" class="primary-button" type="button"
+                        data-i18n="settings.themes.save">保存</button>
                 </div>
             </div>
         </div>
@@ -1100,6 +1179,7 @@
                 "step.translate": "翻訳",
                 "settings.title": "設定",
                 "settings.tab.transcription": "文字起こし",
+                "settings.tab.themes": "テーマ",
                 "settings.tab.postprocess": "後処理",
                 "settings.tab.draft": "ドラフト",
                 "settings.tab.history": "履歴",
@@ -1107,6 +1187,45 @@
                 "settings.tab.appearance": "表示",
                 "settings.tab.models": "モデル",
                 "settings.tab.shortcuts": "ショートカット",
+                "settings.themes.title": "テーマ",
+                "settings.themes.hint": "テーマには会話の文脈、専門用語、整形の追加指示を保存できます。メイン画面からテーマを選ぶと、文字起こし精度の補正と後処理の挙動を一括で切り替えられます。",
+                "settings.themes.add": "＋ 新規",
+                "settings.themes.edit": "編集",
+                "settings.themes.empty": "テーマがまだありません。「＋ 新規」から追加してください。",
+                "settings.themes.empty.fields": "（フィールド未設定）",
+                "settings.themes.hasPrompt": "文脈プロンプト",
+                "settings.themes.hasTerms": "専門用語",
+                "settings.themes.hasInstruction": "整形指示",
+                "settings.themes.editorTitleNew": "新しいテーマ",
+                "settings.themes.editorTitleEdit": "テーマを編集",
+                "settings.themes.name": "名前",
+                "settings.themes.namePlaceholder": "例: 技術会議",
+                "settings.themes.description": "メモ（任意）",
+                "settings.themes.descriptionPlaceholder": "このテーマをいつ使うかのメモ",
+                "settings.themes.transcriptionPrompt": "会話の文脈（文字起こし補正に使用）",
+                "settings.themes.transcriptionPromptPlaceholder": "例: SeeDraft、Foundry Local、axum、Tauri を扱う技術会議の文字起こし",
+                "settings.themes.transcriptionPromptHint": "自然文で記述してください。Whisper の文字起こし結果を LLM で補正する際の文脈として渡されます。",
+                "settings.themes.customTerms": "専門用語・固有名詞",
+                "settings.themes.customTermsPlaceholder": "SeeDraft, Foundry Local, axum",
+                "settings.themes.customTermsHint": "カンマ区切り。整形・翻訳の際に綴りが維持されます。",
+                "settings.themes.customInstruction": "追加指示（整形）",
+                "settings.themes.customInstructionPlaceholder": "例: 句読点の位置を自然に",
+                "settings.themes.save": "保存",
+                "settings.themes.delete": "削除",
+                "settings.themes.saved": "テーマを保存しました",
+                "settings.themes.saveFailed": "テーマの保存に失敗しました",
+                "settings.themes.deleted": "テーマを削除しました",
+                "settings.themes.deleteFailed": "テーマの削除に失敗しました",
+                "settings.themes.deleteConfirm": "テーマ「{name}」を削除しますか？",
+                "settings.themes.nameRequired": "テーマ名を入力してください",
+                "settings.themes.selectorTitle": "文字起こしテーマ",
+                "settings.themes.none": "テーマなし",
+                "settings.themes.importSamples": "サンプルを追加",
+                "settings.themes.importConfirm": "{locale}向けのサンプルテーマを {count} 件追加します。よろしいですか？",
+                "settings.themes.importDone": "サンプルテーマを {count} 件追加しました",
+                "settings.themes.importNoneNew": "追加できる新しいサンプルテーマはありません（同名のテーマが既に存在します）",
+                "settings.themes.importLocale.ja": "日本語",
+                "settings.themes.importLocale.en": "英語",
                 "settings.shortcuts.hint": "各項目の入力欄をクリックして、割り当てたいキーを押してください。「押下中だけ録音」は右Ctrlなどの単独キーも指定でき、アプリが非アクティブでも動作します。Esc で取り消し、Delete / Backspace で解除できます。",
                 "settings.shortcuts.reset": "既定値に戻す",
                 "settings.shortcuts.unset": "未設定",
@@ -1352,6 +1471,7 @@
                 "live.savedSessions": "保存済みセッション",
                 "live.inputSource": "入力",
                 "live.sourceLanguage": "原言語",
+                "live.audioMeter.tooltip": "音声入力を確認",
                 "live.targetLanguage": "訳先",
                 "live.enableTranslation": "同時翻訳",
                 "live.transcriptionModel": "文字起こしモデル",
@@ -1603,6 +1723,7 @@
                 "step.translate": "Translate",
                 "settings.title": "Settings",
                 "settings.tab.transcription": "Transcription",
+                "settings.tab.themes": "Themes",
                 "settings.tab.postprocess": "Post-processing",
                 "settings.tab.draft": "Draft",
                 "settings.tab.history": "History",
@@ -1610,6 +1731,45 @@
                 "settings.tab.appearance": "Appearance",
                 "settings.tab.models": "Models",
                 "settings.tab.shortcuts": "Shortcuts",
+                "settings.themes.title": "Themes",
+                "settings.themes.hint": "A theme bundles conversation context, custom terminology, and refinement hints. Selecting a theme on the main screen swaps both the transcription correction prompt and the downstream refinement settings in one click.",
+                "settings.themes.add": "+ New",
+                "settings.themes.edit": "Edit",
+                "settings.themes.empty": "No themes yet. Click \"+ New\" to add one.",
+                "settings.themes.empty.fields": "(no fields set)",
+                "settings.themes.hasPrompt": "Context prompt",
+                "settings.themes.hasTerms": "Terms",
+                "settings.themes.hasInstruction": "Refine instruction",
+                "settings.themes.editorTitleNew": "New theme",
+                "settings.themes.editorTitleEdit": "Edit theme",
+                "settings.themes.name": "Name",
+                "settings.themes.namePlaceholder": "e.g. Engineering review",
+                "settings.themes.description": "Notes (optional)",
+                "settings.themes.descriptionPlaceholder": "When to use this theme",
+                "settings.themes.transcriptionPrompt": "Conversation context (used for transcription correction)",
+                "settings.themes.transcriptionPromptPlaceholder": "e.g. Engineering review covering SeeDraft, Foundry Local, axum, Tauri",
+                "settings.themes.transcriptionPromptHint": "Write as natural prose. Passed to the LLM that post-corrects Whisper's output as context.",
+                "settings.themes.customTerms": "Terminology / proper nouns",
+                "settings.themes.customTermsPlaceholder": "SeeDraft, Foundry Local, axum",
+                "settings.themes.customTermsHint": "Comma-separated. Preserved during refinement and translation.",
+                "settings.themes.customInstruction": "Extra instruction (refine)",
+                "settings.themes.customInstructionPlaceholder": "e.g. Adjust punctuation naturally",
+                "settings.themes.save": "Save",
+                "settings.themes.delete": "Delete",
+                "settings.themes.saved": "Theme saved",
+                "settings.themes.saveFailed": "Failed to save theme",
+                "settings.themes.deleted": "Theme deleted",
+                "settings.themes.deleteFailed": "Failed to delete theme",
+                "settings.themes.deleteConfirm": "Delete theme \"{name}\"?",
+                "settings.themes.nameRequired": "Theme name is required",
+                "settings.themes.selectorTitle": "Transcription theme",
+                "settings.themes.none": "No theme",
+                "settings.themes.importSamples": "Add samples",
+                "settings.themes.importConfirm": "Add {count} sample themes for {locale}?",
+                "settings.themes.importDone": "Added {count} sample themes",
+                "settings.themes.importNoneNew": "No new samples to add (a theme with the same name already exists)",
+                "settings.themes.importLocale.ja": "Japanese",
+                "settings.themes.importLocale.en": "English",
                 "settings.shortcuts.hint": "Click a field and press the keys you want to bind. Press-and-hold recording can use a single key such as RightCtrl and works even when the app is inactive. Esc to cancel, Delete / Backspace to clear.",
                 "settings.shortcuts.reset": "Reset to defaults",
                 "settings.shortcuts.unset": "unset",
@@ -1855,6 +2015,7 @@
                 "live.savedSessions": "Saved sessions",
                 "live.inputSource": "Input",
                 "live.sourceLanguage": "Source",
+                "live.audioMeter.tooltip": "Live audio level",
                 "live.targetLanguage": "Target",
                 "live.enableTranslation": "Live translate",
                 "live.transcriptionModel": "Transcription model",
@@ -2337,6 +2498,22 @@ Input notes:
         const projectEditorSave = document.getElementById("projectEditorSave");
         const projectEditorClose = document.getElementById("projectEditorClose");
         const projectEditorDelete = document.getElementById("projectEditorDelete");
+
+        // Theme selector & editor
+        const themeSelector = document.getElementById("themeSelector");
+        const themeListEl = document.getElementById("themeList");
+        const themeAddButton = document.getElementById("themeAddButton");
+        const themeImportSamplesButton = document.getElementById("themeImportSamplesButton");
+        const themeEditorModal = document.getElementById("themeEditorModal");
+        const themeEditorTitle = document.getElementById("themeEditorTitle");
+        const themeEditorName = document.getElementById("themeEditorName");
+        const themeEditorDescription = document.getElementById("themeEditorDescription");
+        const themeEditorTranscriptionPrompt = document.getElementById("themeEditorTranscriptionPrompt");
+        const themeEditorCustomTerms = document.getElementById("themeEditorCustomTerms");
+        const themeEditorCustomInstruction = document.getElementById("themeEditorCustomInstruction");
+        const themeEditorSave = document.getElementById("themeEditorSave");
+        const themeEditorDelete = document.getElementById("themeEditorDelete");
+        const themeEditorClose = document.getElementById("themeEditorClose");
 
         // History overlay
         // Notes workspace lives in the main view; no overlay to open/close.
@@ -4006,17 +4183,12 @@ Input notes:
         const updateCaptionStats = () => {
             const text = captionContent.value;
             const trimmed = text.trim();
-            if (!trimmed) {
-                captionStats.hidden = true;
-                return;
-            }
-            captionStats.hidden = false;
-            const chars = [...trimmed].length; // count by code points (handles emoji)
-            const fillers = countFillers(text);
+            const chars = trimmed ? [...trimmed].length : 0; // count by code points (handles emoji)
+            const fillers = trimmed ? countFillers(text) : 0;
             statChars.textContent = chars.toLocaleString(currentLocale);
             statFillers.textContent = fillers.toLocaleString(currentLocale);
 
-            if (lastTranscriptionDuration > 0) {
+            if (trimmed && lastTranscriptionDuration > 0) {
                 statDurationWrap.hidden = false;
                 statDuration.textContent = `${lastTranscriptionDuration.toFixed(1)}s`;
                 const cpm = (chars / (lastTranscriptionDuration / 60));
@@ -4066,13 +4238,20 @@ Input notes:
         // artifacts (fillers, misrecognitions, punctuation) are corrected.
         // Stylistic rewrites belong in custom post-processing steps.
         const getPostProcessingConfig = () => {
+            // When a theme is selected on the main screen, its custom_terms /
+            // custom_instruction take precedence over the settings textareas so
+            // a single theme switch reconfigures both the transcription prompt
+            // and the downstream refine step in one go.
+            const activeTheme = selectedTheme();
+            const themedTerms = activeTheme?.custom_terms || customTerms.value;
+            const themedInstruction = activeTheme?.custom_instruction || customInstruction.value;
             return {
                 refinement: {
                     enabled: !!quickAutoRefine?.checked,
                     removeFillers: removeFillers.checked,
                     voiceCommands: voiceCommands.checked,
-                    customTerms: customTerms.value,
-                    customInstruction: customInstruction.value,
+                    customTerms: themedTerms,
+                    customInstruction: themedInstruction,
                     model: refineModel?.value || ""
                 },
                 translation: {
@@ -4353,6 +4532,339 @@ Input notes:
                 return [];
             }
         };
+
+        // ========== Theme management ==========
+        // Themes bundle transcription-accuracy hints (post-Whisper LLM correction
+        // prompt + custom terms + custom instruction). The selected theme is
+        // stored in localStorage so it survives reloads.
+        let themes = [];
+        let editingThemeId = null;
+        const SELECTED_THEME_KEY = "seedraft_selected_theme";
+
+        const loadSelectedThemeId = () => {
+            try {
+                return localStorage.getItem(SELECTED_THEME_KEY) || "";
+            } catch (_) {
+                return "";
+            }
+        };
+        const saveSelectedThemeId = (id) => {
+            try {
+                if (id) {
+                    localStorage.setItem(SELECTED_THEME_KEY, id);
+                } else {
+                    localStorage.removeItem(SELECTED_THEME_KEY);
+                }
+            } catch (_) { /* ignore */ }
+        };
+
+        const selectedTheme = () => {
+            const id = themeSelector?.value || "";
+            return id ? themes.find(t => t.id === id) || null : null;
+        };
+
+        const renderThemeSelector = () => {
+            if (!themeSelector) return;
+            const previousValue = themeSelector.value;
+            // Keep the first "none" option, rebuild the rest.
+            const fragments = [];
+            for (const theme of themes) {
+                const opt = document.createElement("option");
+                opt.value = theme.id;
+                opt.textContent = theme.name;
+                fragments.push(opt);
+            }
+            // Clear all but the first <option>
+            while (themeSelector.options.length > 1) {
+                themeSelector.remove(1);
+            }
+            fragments.forEach(opt => themeSelector.appendChild(opt));
+            const stored = loadSelectedThemeId();
+            const desired = previousValue || stored;
+            if (desired && themes.some(t => t.id === desired)) {
+                themeSelector.value = desired;
+            } else {
+                themeSelector.value = "";
+            }
+        };
+
+        const renderThemeList = () => {
+            if (!themeListEl) return;
+            themeListEl.innerHTML = "";
+            if (themes.length === 0) {
+                const empty = document.createElement("p");
+                empty.className = "field-hint";
+                empty.textContent = t("settings.themes.empty");
+                themeListEl.appendChild(empty);
+                return;
+            }
+            for (const theme of themes) {
+                const item = document.createElement("div");
+                item.className = "theme-list-item";
+                const head = document.createElement("div");
+                head.className = "theme-list-item-head";
+                const title = document.createElement("strong");
+                title.className = "theme-list-item-name";
+                title.textContent = theme.name;
+                head.appendChild(title);
+                const actions = document.createElement("div");
+                actions.className = "theme-list-item-actions";
+                const editButton = document.createElement("button");
+                editButton.type = "button";
+                editButton.className = "text-button";
+                editButton.textContent = t("settings.themes.edit");
+                editButton.addEventListener("click", () => openThemeEditor(theme));
+                actions.appendChild(editButton);
+                head.appendChild(actions);
+                item.appendChild(head);
+                if (theme.description) {
+                    const desc = document.createElement("p");
+                    desc.className = "theme-list-item-desc";
+                    desc.textContent = theme.description;
+                    item.appendChild(desc);
+                }
+                const meta = document.createElement("p");
+                meta.className = "theme-list-item-meta field-hint field-hint-sub";
+                const parts = [];
+                if (theme.transcription_prompt) parts.push(t("settings.themes.hasPrompt"));
+                if (theme.custom_terms) parts.push(t("settings.themes.hasTerms"));
+                if (theme.custom_instruction) parts.push(t("settings.themes.hasInstruction"));
+                meta.textContent = parts.length > 0 ? parts.join(" · ") : t("settings.themes.empty.fields");
+                item.appendChild(meta);
+                themeListEl.appendChild(item);
+            }
+        };
+
+        const refreshThemes = async () => {
+            try {
+                const response = await fetch("/api/themes");
+                if (!response.ok) return;
+                const payload = await response.json();
+                themes = payload.themes || [];
+                renderThemeSelector();
+                renderThemeList();
+            } catch (error) {
+                console.warn("fetch themes failed", error);
+            }
+        };
+
+        const openThemeEditor = (theme) => {
+            editingThemeId = theme ? theme.id : null;
+            themeEditorTitle.textContent = theme
+                ? t("settings.themes.editorTitleEdit")
+                : t("settings.themes.editorTitleNew");
+            themeEditorName.value = theme ? theme.name : "";
+            themeEditorDescription.value = theme ? (theme.description || "") : "";
+            themeEditorTranscriptionPrompt.value = theme ? (theme.transcription_prompt || "") : "";
+            themeEditorCustomTerms.value = theme ? (theme.custom_terms || "") : "";
+            themeEditorCustomInstruction.value = theme ? (theme.custom_instruction || "") : "";
+            themeEditorDelete.hidden = !theme;
+            themeEditorModal.hidden = false;
+            setTimeout(() => themeEditorName.focus(), 0);
+        };
+
+        const closeThemeEditor = () => {
+            themeEditorModal.hidden = true;
+            editingThemeId = null;
+        };
+
+        themeAddButton?.addEventListener("click", () => openThemeEditor(null));
+        themeEditorClose?.addEventListener("click", closeThemeEditor);
+        themeEditorModal?.addEventListener("click", (event) => {
+            if (event.target === themeEditorModal) closeThemeEditor();
+        });
+
+        themeEditorSave?.addEventListener("click", async () => {
+            const name = themeEditorName.value.trim();
+            if (!name) {
+                showToast(t("settings.themes.nameRequired"), "error");
+                return;
+            }
+            const body = {
+                name,
+                description: themeEditorDescription.value.trim() || null,
+                transcription_prompt: themeEditorTranscriptionPrompt.value.trim() || null,
+                custom_terms: themeEditorCustomTerms.value.trim() || null,
+                custom_instruction: themeEditorCustomInstruction.value.trim() || null,
+            };
+            try {
+                const url = editingThemeId ? `/api/themes/${editingThemeId}` : "/api/themes";
+                const method = editingThemeId ? "PUT" : "POST";
+                const response = await fetch(url, {
+                    method,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                });
+                if (!response.ok) {
+                    const payload = await response.json().catch(() => ({}));
+                    throw new Error(payload.error || "save failed");
+                }
+                const saved = await response.json();
+                if (!editingThemeId) {
+                    // Newly created theme — auto-select it on the main screen.
+                    saveSelectedThemeId(saved.id);
+                }
+                await refreshThemes();
+                closeThemeEditor();
+                showToast(t("settings.themes.saved"), "success");
+            } catch (error) {
+                console.warn("theme save failed", error);
+                showToast(t("settings.themes.saveFailed"), "error");
+            }
+        });
+
+        themeEditorDelete?.addEventListener("click", async () => {
+            if (!editingThemeId) return;
+            const theme = themes.find(t => t.id === editingThemeId);
+            if (!window.confirm(t("settings.themes.deleteConfirm", { name: theme?.name || "" }))) return;
+            try {
+                await fetch(`/api/themes/${editingThemeId}`, { method: "DELETE" });
+                if (loadSelectedThemeId() === editingThemeId) saveSelectedThemeId("");
+                await refreshThemes();
+                closeThemeEditor();
+                showToast(t("settings.themes.deleted"), "success");
+            } catch (error) {
+                console.warn("theme delete failed", error);
+                showToast(t("settings.themes.deleteFailed"), "error");
+            }
+        });
+
+        themeSelector?.addEventListener("change", () => {
+            saveSelectedThemeId(themeSelector.value);
+        });
+
+        // Built-in starter themes. Keyed by UI locale so Japanese users get
+        // Japanese-tuned context prompts and English users get English ones.
+        // The "Add samples" button inserts whichever set matches the current
+        // UI locale; duplicates (by name) are skipped so the button is safe
+        // to press more than once.
+        const THEME_SAMPLES = {
+            ja: [
+                {
+                    name: "技術会議",
+                    description: "ソフトウェア開発・技術レビューの会議向け",
+                    transcription_prompt: "ソフトウェア開発の技術レビュー会議の文字起こし。Rust、TypeScript、API、データベース、CI/CD、リポジトリ、プルリクエスト、コミット、デプロイ、リファクタリング、テスト、ドキュメントなどの用語が頻繁に登場する。",
+                    custom_terms: "SeeDraft, Foundry Local, axum, Tauri, Whisper, Rust, TypeScript, npm, cargo, Git, GitHub, API",
+                    custom_instruction: "英単語や記号は原綴りのまま残す。コードや識別子は読み上げどおりに表記する。",
+                },
+                {
+                    name: "ビジネス会議",
+                    description: "経営会議・営業会議・四半期レビュー向け",
+                    transcription_prompt: "ビジネス会議の文字起こし。売上、利益、KPI、ROI、四半期、上期、下期、案件、リード、顧客、提案、契約、見積などの用語が登場する。",
+                    custom_terms: "KPI, ROI, KGI, OKR, P/L, B/S, EBITDA, Q1, Q2, Q3, Q4",
+                    custom_instruction: "数字や金額は単位（億、万、円、ドルなど）を正確に残す。会社名・人名はそのまま表記する。",
+                },
+                {
+                    name: "医療面談",
+                    description: "医師の問診・診察・カルテ向け",
+                    transcription_prompt: "医療現場での問診・診察の文字起こし。主訴、既往歴、現病歴、服薬、家族歴、検査結果、診断、処方、副作用などの用語が登場する。",
+                    custom_terms: "高血圧, 糖尿病, 脂質異常症, MRI, CT, ECG, 心電図",
+                    custom_instruction: "医学用語の表記ゆれを統一する。薬剤名はカタカナで統一する。数値（血圧、体温など）は単位を保持する。",
+                },
+                {
+                    name: "インタビュー",
+                    description: "取材・1on1・対談・ポッドキャスト向け",
+                    transcription_prompt: "インタビュー・対談の文字起こし。話者の役職、肩書、会社名、専門領域などの固有名詞が登場する。",
+                    custom_terms: "",
+                    custom_instruction: "話者の発言を要約せず、原文の言い回しをできるだけ保持する。語尾や感嘆詞も意味があれば残す。",
+                },
+                {
+                    name: "学術発表",
+                    description: "大学講義・学会発表・研究セミナー向け",
+                    transcription_prompt: "学術発表・講義・研究セミナーの文字起こし。論文、引用、図、表、データセット、実験、検定、有意差、p値などの用語が登場する。",
+                    custom_terms: "p値, R^2, RCT, OLS, SVM, CNN, RNN, LSTM, Transformer",
+                    custom_instruction: "数式や記号は読み上げに従って忠実に書き起こす。引用や参考文献の文字列はそのまま残す。",
+                },
+                {
+                    name: "カスタマーサポート",
+                    description: "問い合わせ対応・サポート通話向け",
+                    transcription_prompt: "カスタマーサポートの通話の文字起こし。製品名、注文番号、問い合わせ番号、エラーコード、契約プランなどが登場する。",
+                    custom_terms: "",
+                    custom_instruction: "顧客の発言と担当者の発言を区別できるよう、改行を保つ。番号や日付は正確に表記する。",
+                },
+            ],
+            en: [
+                {
+                    name: "Engineering review",
+                    description: "Software development / technical review meetings",
+                    transcription_prompt: "Transcription of a software engineering review meeting. Topics include Rust, TypeScript, APIs, databases, CI/CD, repositories, pull requests, commits, deployments, refactoring, tests, and documentation.",
+                    custom_terms: "SeeDraft, Foundry Local, axum, Tauri, Whisper, Rust, TypeScript, npm, cargo, Git, GitHub, API",
+                    custom_instruction: "Keep technical terms in their original spelling. Preserve code-like tokens exactly as spoken.",
+                },
+                {
+                    name: "Business meeting",
+                    description: "Executive, sales, and quarterly review meetings",
+                    transcription_prompt: "Transcription of a business meeting. Topics include revenue, profit, KPIs, ROI, quarterly results, pipelines, leads, customers, proposals, contracts, and quotes.",
+                    custom_terms: "KPI, ROI, KGI, OKR, P/L, B/S, EBITDA, Q1, Q2, Q3, Q4",
+                    custom_instruction: "Preserve numerical figures and currency units exactly. Keep proper nouns of companies and people as spoken.",
+                },
+                {
+                    name: "Medical consultation",
+                    description: "Patient interviews and clinical notes",
+                    transcription_prompt: "Transcription of a medical consultation. Topics include chief complaint, history of present illness, past medical history, medications, family history, lab results, diagnoses, prescriptions, and adverse effects.",
+                    custom_terms: "hypertension, diabetes, hyperlipidemia, MRI, CT, ECG",
+                    custom_instruction: "Use consistent spelling for medical terminology and drug names. Preserve units on measurements (blood pressure, temperature, etc.).",
+                },
+                {
+                    name: "Interview",
+                    description: "1:1 interviews, journalism, podcasts",
+                    transcription_prompt: "Transcription of an interview. Proper nouns include speaker titles, affiliations, and domain-specific terms.",
+                    custom_terms: "",
+                    custom_instruction: "Preserve the speaker's original phrasing; do not summarize. Keep meaningful interjections.",
+                },
+                {
+                    name: "Academic lecture",
+                    description: "University lectures, seminars, conference talks",
+                    transcription_prompt: "Transcription of an academic lecture or seminar. Topics include papers, citations, figures, tables, datasets, experiments, hypothesis tests, significance, and p-values.",
+                    custom_terms: "p-value, R^2, RCT, OLS, SVM, CNN, RNN, LSTM, Transformer",
+                    custom_instruction: "Transcribe formulas and symbols faithfully as spoken. Preserve citation strings verbatim.",
+                },
+                {
+                    name: "Customer support",
+                    description: "Support calls and inquiry handling",
+                    transcription_prompt: "Transcription of a customer support call. Topics include product names, order numbers, ticket IDs, error codes, and subscription plans.",
+                    custom_terms: "",
+                    custom_instruction: "Preserve speaker turns with line breaks where possible. Keep numbers, dates, and IDs exact.",
+                },
+            ],
+        };
+
+        const sampleThemesForLocale = (locale) => {
+            return THEME_SAMPLES[locale] || THEME_SAMPLES.en;
+        };
+
+        const importSampleThemes = async () => {
+            const locale = THEME_SAMPLES[currentLocale] ? currentLocale : "en";
+            const samples = sampleThemesForLocale(locale);
+            const existingNames = new Set(themes.map(theme => theme.name));
+            const fresh = samples.filter(sample => !existingNames.has(sample.name));
+            if (fresh.length === 0) {
+                showToast(t("settings.themes.importNoneNew"), "info");
+                return;
+            }
+            const message = t("settings.themes.importConfirm", {
+                count: fresh.length,
+                locale: t(`settings.themes.importLocale.${locale}`),
+            });
+            if (!window.confirm(message)) return;
+            let added = 0;
+            for (const sample of fresh) {
+                try {
+                    const response = await fetch("/api/themes", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(sample),
+                    });
+                    if (response.ok) added += 1;
+                } catch (error) {
+                    console.warn("sample theme insert failed", sample.name, error);
+                }
+            }
+            await refreshThemes();
+            showToast(t("settings.themes.importDone", { count: added }), "success");
+        };
+
+        themeImportSamplesButton?.addEventListener("click", importSampleThemes);
 
         const formatDate = (ms) => {
             if (!ms) return "";
@@ -7139,7 +7651,213 @@ Input notes:
             state.audioChunks.push({ start: chunkStart, data: down });
             state.totalSamples += down.length;
             updateLiveUtteranceState(state, chunkStart, chunkEnd, rms);
+            feedLiveAudioMeter(down);
         };
+
+        // ==== Live audio meter ====
+        // Visualizes incoming audio between the input-source and source-language
+        // controls so the user can confirm the mic / PC audio is actually being
+        // captured. Two data paths:
+        //   - microphone: an AnalyserNode hangs off the WebAudio source, same
+        //     proven pattern as the settings-tab mic monitor.
+        //   - system audio: AnalyserNode is not available (we only get PCM
+        //     bytes via the drain endpoint), so we fall back to feeding the ring
+        //     buffer directly from `ingestLivePcm`.
+        const LIVE_METER_SAMPLES = 256;
+        const liveAudioMeter = {
+            canvas: null,
+            wave: new Float32Array(LIVE_METER_SAMPLES),
+            head: 0,
+            level: 0,
+            raf: null,
+            active: false,
+            // Optional WebAudio analyser for the microphone path. Filled in
+            // by `attachLiveAudioMeterAnalyser` from `startLiveMicCapture`.
+            analyser: null,
+            analyserBuffer: null,
+        };
+
+        const ensureLiveAudioMeterCanvas = () => {
+            if (!liveAudioMeter.canvas) {
+                liveAudioMeter.canvas = document.getElementById("liveAudioMeterCanvas");
+            }
+            return liveAudioMeter.canvas;
+        };
+
+        const liveMeterDpr = () => window.devicePixelRatio || 1;
+
+        const resizeLiveMeterCanvas = () => {
+            const canvas = ensureLiveAudioMeterCanvas();
+            if (!canvas) return null;
+            const rect = canvas.getBoundingClientRect();
+            const scale = liveMeterDpr();
+            // While the live overlay is hidden the rect is 0×0; in that case
+            // fall back to the CSS-declared size so the canvas is correctly
+            // sized as soon as the overlay opens.
+            const cssWidth = rect.width || 180;
+            const cssHeight = rect.height || 32;
+            const w = Math.max(1, Math.floor(cssWidth * scale));
+            const h = Math.max(1, Math.floor(cssHeight * scale));
+            if (canvas.width !== w || canvas.height !== h) {
+                canvas.width = w;
+                canvas.height = h;
+            }
+            return { w, h };
+        };
+
+        // Sample the analyser if available, otherwise leave the ring buffer
+        // alone (it's populated by `feedLiveAudioMeter`). Computes a smoothed
+        // RMS level either way so the background fill rises with volume.
+        const sampleLiveAudioMeter = () => {
+            const analyser = liveAudioMeter.analyser;
+            if (!analyser) return;
+            const buf = liveAudioMeter.analyserBuffer;
+            analyser.getByteTimeDomainData(buf);
+            const wave = liveAudioMeter.wave;
+            const waveLen = wave.length;
+            // Resample the analyser frame to fill the ring buffer evenly.
+            for (let i = 0; i < waveLen; i++) {
+                const idx = Math.floor((i / waveLen) * buf.length);
+                wave[i] = (buf[idx] - 128) / 128;
+            }
+            liveAudioMeter.head = 0;
+            let energy = 0;
+            for (let i = 0; i < buf.length; i++) {
+                const centered = (buf[i] - 128) / 128;
+                energy += centered * centered;
+            }
+            const rms = Math.sqrt(energy / buf.length);
+            liveAudioMeter.level = liveAudioMeter.level * 0.6 + Math.min(1, rms * 3.5) * 0.4;
+        };
+
+        const drawLiveAudioMeterFrame = () => {
+            const canvas = ensureLiveAudioMeterCanvas();
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return;
+            const size = resizeLiveMeterCanvas();
+            if (!size) return;
+            const { w, h } = size;
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = "#0d1117";
+            ctx.fillRect(0, 0, w, h);
+
+            if (liveAudioMeter.active) {
+                ctx.fillStyle = "rgba(46, 160, 67, 0.18)";
+                const fillH = Math.min(h, h * liveAudioMeter.level);
+                ctx.fillRect(0, h - fillH, w, fillH);
+            }
+
+            ctx.strokeStyle = "#30363d";
+            ctx.lineWidth = Math.max(1, liveMeterDpr());
+            ctx.beginPath();
+            ctx.moveTo(0, h / 2);
+            ctx.lineTo(w, h / 2);
+            ctx.stroke();
+
+            if (!liveAudioMeter.active) return;
+
+            const wave = liveAudioMeter.wave;
+            const len = wave.length;
+            const head = liveAudioMeter.head;
+            ctx.strokeStyle = liveAudioMeter.level > 0.72 ? "#f0c96f" : "#3fb950";
+            ctx.lineWidth = Math.max(1.5, 1.5 * liveMeterDpr());
+            ctx.beginPath();
+            for (let i = 0; i < len; i++) {
+                const value = wave[(head + i) % len];
+                const x = (i / (len - 1)) * w;
+                const y = h / 2 - value * (h / 2) * 0.9;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        };
+
+        const drawLiveAudioMeterIdle = () => {
+            liveAudioMeter.active = false;
+            liveAudioMeter.level = 0;
+            liveAudioMeter.wave.fill(0);
+            drawLiveAudioMeterFrame();
+        };
+
+        const liveAudioMeterTick = () => {
+            if (!liveAudioMeter.active) {
+                liveAudioMeter.raf = null;
+                return;
+            }
+            sampleLiveAudioMeter();
+            drawLiveAudioMeterFrame();
+            liveAudioMeter.raf = requestAnimationFrame(liveAudioMeterTick);
+        };
+
+        const startLiveAudioMeter = () => {
+            if (!ensureLiveAudioMeterCanvas()) return;
+            liveAudioMeter.wave.fill(0);
+            liveAudioMeter.head = 0;
+            liveAudioMeter.level = 0;
+            liveAudioMeter.active = true;
+            if (!liveAudioMeter.raf) {
+                liveAudioMeter.raf = requestAnimationFrame(liveAudioMeterTick);
+            }
+        };
+
+        const stopLiveAudioMeter = () => {
+            liveAudioMeter.active = false;
+            liveAudioMeter.analyser = null;
+            liveAudioMeter.analyserBuffer = null;
+            if (liveAudioMeter.raf) {
+                cancelAnimationFrame(liveAudioMeter.raf);
+                liveAudioMeter.raf = null;
+            }
+            drawLiveAudioMeterIdle();
+        };
+
+        // Used by the microphone path to expose the live audio source to the
+        // visualizer via a parallel AnalyserNode. Mirrors `startMicMonitor` in
+        // the settings tab so we know this pattern actually fires.
+        const attachLiveAudioMeterAnalyser = (audioCtx, source) => {
+            if (!audioCtx || !source) return;
+            try {
+                const analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 1024;
+                analyser.smoothingTimeConstant = 0.55;
+                source.connect(analyser);
+                liveAudioMeter.analyser = analyser;
+                liveAudioMeter.analyserBuffer = new Uint8Array(analyser.fftSize);
+            } catch (error) {
+                console.warn("live audio meter analyser attach failed", error);
+            }
+        };
+
+        // System-audio fallback: drain chunks arrive ~4×/sec, so we slot a few
+        // samples into the ring buffer to keep the waveform alive even without
+        // an analyser. Only used when there's no analyser attached.
+        const feedLiveAudioMeter = (samples) => {
+            if (!liveAudioMeter.active || liveAudioMeter.analyser) return;
+            if (!samples?.length) return;
+            const wave = liveAudioMeter.wave;
+            const len = wave.length;
+            const targetWrites = 32;
+            const stride = Math.max(1, Math.floor(samples.length / targetWrites));
+            let head = liveAudioMeter.head;
+            let energy = 0;
+            let n = 0;
+            for (let i = 0; i < samples.length; i += stride) {
+                const v = samples[i];
+                wave[head] = Math.max(-1, Math.min(1, v));
+                head = (head + 1) % len;
+                energy += v * v;
+                n += 1;
+            }
+            liveAudioMeter.head = head;
+            if (n > 0) {
+                const rms = Math.sqrt(energy / n);
+                liveAudioMeter.level = liveAudioMeter.level * 0.7 + Math.min(1, rms * 3.5) * 0.3;
+            }
+        };
+
+        // Paint idle on first load so the canvas isn't blank.
+        drawLiveAudioMeterIdle();
 
         const resampleFloat32 = (input, sourceRate, targetRate = LIVE_SAMPLE_RATE) => {
             const ratio = sourceRate / targetRate;
@@ -7246,6 +7964,9 @@ Input notes:
         const startLiveMicCapture = async (state) => {
             const stream = await getMicStream(buildMicAudioConstraints());
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === "suspended") {
+                try { await audioCtx.resume(); } catch { /* user gesture should already cover this */ }
+            }
             const source = audioCtx.createMediaStreamSource(stream);
             const processor = audioCtx.createScriptProcessor(4096, 1, 1);
             const sourceRate = audioCtx.sampleRate;
@@ -7259,6 +7980,7 @@ Input notes:
 
             source.connect(processor);
             processor.connect(audioCtx.destination);
+            attachLiveAudioMeterAnalyser(audioCtx, source);
 
             state.audioCtx = audioCtx;
             state.source = source;
@@ -7373,6 +8095,7 @@ Input notes:
                 } else {
                     await startLiveMicCapture(liveState);
                 }
+                startLiveAudioMeter();
 
                 // Timer loop; caption chunks are queued by speech/silence detection.
                 const tick = async () => {
@@ -7403,6 +8126,7 @@ Input notes:
                     }).catch(() => { });
                 }
                 liveState = null;
+                stopLiveAudioMeter();
                 showErrorBanner((error && error.message) || t("live.micError"));
                 setLiveActionButtonState({ recording: false, disabled: false });
             }
@@ -7416,6 +8140,7 @@ Input notes:
 
             if (state.timerInterval) clearInterval(state.timerInterval);
             if (state.systemAudioDrainInterval) clearInterval(state.systemAudioDrainInterval);
+            stopLiveAudioMeter();
             try { state.processor?.disconnect(); } catch { }
             try { state.source?.disconnect(); } catch { }
             // Keep the mic stream alive (cachedMicStream) so re-starting
@@ -7816,6 +8541,7 @@ Input notes:
             await refreshProjects();
             await refreshHistoryView();
             await renderGraph();
+            await refreshThemes();
         })();
 
         // ========== Keyboard shortcuts ==========
@@ -9017,7 +9743,11 @@ Input notes:
             const formData = new FormData();
             formData.append("language", language.value);
             formData.append("speech_model", speechModel.value);
-            formData.append("transcription_prompt", transcriptionPrompt.value);
+            // If a theme is selected, its transcription prompt overrides the
+            // settings textarea so the user can switch contexts in one click.
+            const activeTheme = selectedTheme();
+            const promptValue = activeTheme?.transcription_prompt || transcriptionPrompt.value;
+            formData.append("transcription_prompt", promptValue || "");
             if (currentProjectId) formData.append("project_id", currentProjectId);
             const parentNoteId = selectedGraphParentNoteId();
             if (parentNoteId) formData.append("parent_id", parentNoteId);
@@ -10388,10 +11118,6 @@ Input notes:
         box-shadow: 0 6px 18px rgba(46, 160, 67, 0.2);
     }
 
-    body[data-theme="light"] .record-info {
-        background: rgba(218, 54, 51, 0.08);
-    }
-
     * {
         box-sizing: border-box;
     }
@@ -10779,18 +11505,6 @@ Input notes:
         white-space: normal;
     }
 
-    .work-pane .caption-stats {
-        padding: 6px 12px;
-        border-radius: 8px;
-        border: 1px solid var(--bg-surface-3);
-        background: var(--bg-inset);
-        gap: 12px;
-    }
-
-    .work-pane .caption-stat {
-        gap: 6px;
-    }
-
     .caption-stat-icon {
         font-size: 0.9rem;
         opacity: 0.8;
@@ -10812,25 +11526,46 @@ Input notes:
         margin-left: auto;
     }
 
-    /* Inline error/hint line under the control bar */
-    .record-info {
-        margin: 0;
-        padding: 6px 12px;
-        min-height: 32px;
-        border-radius: 8px;
-        border: 1px solid var(--border-default);
+    /* Status bar (Windows-style) at the bottom of the main workspace */
+    .status-bar {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 4px 12px;
+        min-height: 26px;
+        border-top: 1px solid var(--border-default);
         background: var(--bg-surface-2);
         color: var(--text-muted);
-        font-size: 0.82rem;
+        font-size: 0.78rem;
+    }
+
+    .status-bar .status-bar-message {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .status-bar .status-bar-stats {
+        flex: 0 0 auto;
+        margin-left: auto;
+    }
+
+    /* Inline status message (lives inside the status bar) */
+    .record-info {
+        margin: 0;
+        padding: 0;
+        min-height: 0;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 0.78rem;
         line-height: 1.4;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
     }
 
     .record-info[data-empty="true"] {
-        border-style: dashed;
-        background: var(--bg-inset);
         color: var(--text-subtle);
         opacity: 0.82;
     }
@@ -11626,19 +12361,18 @@ Input notes:
         margin-top: 8px;
     }
 
+    /* Sits alongside .text-button / .secondary-button in modal action rows,
+       so it shares the neutral surface and only the red text + hover tint
+       signal the destructive intent. */
     .danger-button {
-        padding: 0 16px;
-        min-height: 36px;
-        border: 1px solid #da3633;
-        border-radius: 8px;
-        background: #2b0f10;
-        color: #f85149;
-        font-weight: 600;
-        cursor: pointer;
+        border: 1px solid var(--border-default);
+        background: var(--bg-surface-3);
+        color: #da3633;
     }
 
     .danger-button:hover:not(:disabled) {
-        background: #4a1515;
+        background: rgba(218, 54, 51, 0.12);
+        border-color: #da3633;
     }
 
     /* Live caption workspace */
@@ -11775,6 +12509,29 @@ Input notes:
     .live-config-row.is-locked {
         opacity: 0.6;
         pointer-events: none;
+    }
+
+    /* Audio waveform between input source and source language. Always
+       readable, even when the config row is locked during recording — that
+       is exactly the moment the user needs to verify audio is flowing. */
+    .live-meter {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 6px;
+        background: #0d1117;
+        border: 1px solid var(--border-default);
+        border-radius: 6px;
+    }
+
+    .live-config-row.is-locked .live-meter {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .live-meter-canvas {
+        display: block;
+        width: 180px;
+        height: 32px;
     }
 
     .live-model-row {
@@ -12200,6 +12957,72 @@ Input notes:
     .language-badge {
         padding: 0 4px 0 10px;
         gap: 4px;
+    }
+
+    .theme-badge {
+        padding: 0 4px 0 10px;
+        gap: 4px;
+        border-color: #d29922;
+        background: #2f2003;
+        color: #e3b341;
+    }
+
+    .theme-badge .topbar-language-select:focus {
+        box-shadow: 0 0 0 2px rgba(227, 179, 65, 0.32);
+        background: rgba(227, 179, 65, 0.12);
+    }
+
+    .theme-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 8px;
+    }
+
+    .theme-list-item {
+        border: 1px solid var(--border-default);
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: var(--bg-surface);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .theme-list-item-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .theme-list-item-name {
+        color: var(--text-primary);
+        font-size: 0.98rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+    }
+
+    .theme-list-item-actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    .theme-list-item-desc {
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+    }
+
+    .theme-list-item-meta {
+        margin: 0;
+        color: var(--text-muted);
+    }
+
+    /* Theme editor opens from inside the settings modal, so it must sit
+       above .settings-modal (z-index 1000). */
+    #themeEditorModal {
+        z-index: 1100;
     }
 
     .topbar-language-select {
@@ -13668,13 +14491,12 @@ Input notes:
     }
 
     .caption-stats {
-        display: flex;
-        gap: 16px;
-        padding: 10px 20px;
-        border-top: 1px solid var(--bg-surface-3);
-        background: var(--bg-surface);
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0;
         color: var(--text-muted);
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
     }
 
     .caption-stats[hidden] {
@@ -13888,15 +14710,6 @@ Input notes:
 
     .record-icon {
         font-size: 1.1rem;
-    }
-
-    .record-info {
-        color: var(--text-muted);
-        font-size: 0.9rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        justify-self: start;
     }
 
     .control-hint {

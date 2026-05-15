@@ -10,6 +10,10 @@ SeeDraft の API エンドポイント一覧。
 | POST | `/api/system-audio/drain` | 録音中のPC音声をPCMチャンクとして取得する | [system-audio-capture.md](system-audio-capture.md) |
 | POST | `/api/system-audio/stop` | PC音声キャプチャを停止し、WAVを返す | [system-audio-capture.md](system-audio-capture.md) |
 | POST | `/api/system-audio/cancel` | PC音声キャプチャを破棄して停止する | [system-audio-capture.md](system-audio-capture.md) |
+| GET | `/api/themes` | 文字起こしテーマ一覧を返す | (`themes` ハンドラ) |
+| POST | `/api/themes` | テーマを新規作成する | (`themes` ハンドラ) |
+| PUT | `/api/themes/:id` | テーマを更新する | (`themes` ハンドラ) |
+| DELETE | `/api/themes/:id` | テーマを削除する | (`themes` ハンドラ) |
 
 ## API 仕様書の書き方
 

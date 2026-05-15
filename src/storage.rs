@@ -103,6 +103,18 @@ pub struct LinkedNote {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Theme {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub transcription_prompt: Option<String>,
+    pub custom_terms: Option<String>,
+    pub custom_instruction: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Translation {
     pub id: String,
     pub note_id: Option<String>,
@@ -286,6 +298,18 @@ impl Storage {
                 translated_text TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_live_segments_session ON live_segments(session_id, sequence);
+
+            CREATE TABLE IF NOT EXISTS themes (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                transcription_prompt TEXT,
+                custom_terms TEXT,
+                custom_instruction TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_themes_updated_at ON themes(updated_at DESC);
             "#,
         )?;
 
@@ -1211,6 +1235,109 @@ impl Storage {
         }
 
         Ok(GraphData { nodes, edges })
+    }
+
+    pub fn list_themes(&self) -> StoreResult<Vec<Theme>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, description, transcription_prompt, custom_terms, custom_instruction, created_at, updated_at
+             FROM themes ORDER BY updated_at DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(Theme {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                transcription_prompt: row.get(3)?,
+                custom_terms: row.get(4)?,
+                custom_instruction: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        })?;
+        let mut themes = Vec::new();
+        for row in rows {
+            themes.push(row?);
+        }
+        Ok(themes)
+    }
+
+    pub fn get_theme(&self, id: &str) -> StoreResult<Option<Theme>> {
+        let conn = self.conn.lock().unwrap();
+        let theme = conn
+            .query_row(
+                "SELECT id, name, description, transcription_prompt, custom_terms, custom_instruction, created_at, updated_at
+                 FROM themes WHERE id = ?",
+                params![id],
+                |row| {
+                    Ok(Theme {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        description: row.get(2)?,
+                        transcription_prompt: row.get(3)?,
+                        custom_terms: row.get(4)?,
+                        custom_instruction: row.get(5)?,
+                        created_at: row.get(6)?,
+                        updated_at: row.get(7)?,
+                    })
+                },
+            )
+            .optional()?;
+        Ok(theme)
+    }
+
+    pub fn create_theme(
+        &self,
+        name: &str,
+        description: Option<&str>,
+        transcription_prompt: Option<&str>,
+        custom_terms: Option<&str>,
+        custom_instruction: Option<&str>,
+    ) -> StoreResult<Theme> {
+        let id = new_id();
+        let now = now_ms();
+        {
+            let conn = self.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO themes (id, name, description, transcription_prompt, custom_terms, custom_instruction, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                params![id, name, description, transcription_prompt, custom_terms, custom_instruction, now, now],
+            )?;
+        }
+        Ok(Theme {
+            id,
+            name: name.to_string(),
+            description: description.map(str::to_string),
+            transcription_prompt: transcription_prompt.map(str::to_string),
+            custom_terms: custom_terms.map(str::to_string),
+            custom_instruction: custom_instruction.map(str::to_string),
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    pub fn update_theme(
+        &self,
+        id: &str,
+        name: &str,
+        description: Option<&str>,
+        transcription_prompt: Option<&str>,
+        custom_terms: Option<&str>,
+        custom_instruction: Option<&str>,
+    ) -> StoreResult<()> {
+        let now = now_ms();
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE themes SET name = ?, description = ?, transcription_prompt = ?, custom_terms = ?, custom_instruction = ?, updated_at = ? WHERE id = ?",
+            params![name, description, transcription_prompt, custom_terms, custom_instruction, now, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_theme(&self, id: &str) -> StoreResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM themes WHERE id = ?", params![id])?;
+        Ok(())
     }
 }
 
