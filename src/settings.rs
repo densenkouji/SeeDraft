@@ -7,11 +7,15 @@ use crate::{AppError, AppResult};
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub(crate) struct AppSettings {
     locales_dir: Option<String>,
+    #[serde(default)]
+    pub(crate) start_minimized: bool,
 }
 
 #[derive(Deserialize)]
 pub(crate) struct AppSettingsInput {
     locales_dir: Option<String>,
+    #[serde(default)]
+    start_minimized: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -19,6 +23,7 @@ pub(crate) struct AppSettingsResponse {
     configured_locales_dir: Option<String>,
     locales_dir: String,
     default_locales_dir: String,
+    start_minimized: bool,
 }
 
 #[derive(Deserialize)]
@@ -33,11 +38,13 @@ pub(crate) struct PickFolderResponse {
 }
 
 fn app_settings_response(settings: AppSettings) -> AppSettingsResponse {
+    let start_minimized = settings.start_minimized;
     let configured_locales_dir = normalize_settings_dir(settings.locales_dir);
     AppSettingsResponse {
         configured_locales_dir: configured_locales_dir.clone(),
         locales_dir: locales_dir().display().to_string(),
         default_locales_dir: default_locales_dir().display().to_string(),
+        start_minimized,
     }
 }
 
@@ -48,8 +55,10 @@ pub(crate) async fn app_settings_handler() -> AppResult<Json<AppSettingsResponse
 pub(crate) async fn update_app_settings_handler(
     Json(input): Json<AppSettingsInput>,
 ) -> AppResult<Json<AppSettingsResponse>> {
+    let current = load_app_settings();
     let settings = AppSettings {
         locales_dir: normalize_settings_dir(input.locales_dir),
+        start_minimized: input.start_minimized.unwrap_or(current.start_minimized),
     };
 
     let resolved_locales_dir = settings
@@ -121,7 +130,7 @@ fn normalize_settings_dir(value: Option<String>) -> Option<String> {
         .filter(|path| !path.is_empty())
 }
 
-fn load_app_settings() -> AppSettings {
+pub(crate) fn load_app_settings() -> AppSettings {
     let path = app_settings_path();
     let Ok(raw) = std::fs::read_to_string(path) else {
         return AppSettings::default();

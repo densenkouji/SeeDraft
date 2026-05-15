@@ -60,6 +60,7 @@ const PREFERRED_PORT: u16 = 38713;
 const LOOPBACK_IP: &str = "127.0.0.1";
 const DEFAULT_SPEECH_MODEL_ALIAS: &str = "whisper-tiny";
 const CHAT_MODEL_ALIAS: &str = "qwen2.5-coder-0.5b";
+const DEFAULT_DRAFT_PROMPT_TEMPLATE: &str = "Reconstruct the following notes into one coherent document.\n\nRules:\n- Output in the same language as the input.\n- Merge duplicate content.\n- Use appropriate Markdown headings (#, ##), paragraphs, and bullet lists for readability.\n- Do not add information that is not present in the input.\n- Respect the note order while creating a natural flow.\n- Do not output a preface, explanation, or code fence.\n- Output only the Markdown body.\n{instruction}\n\nInput notes:\n{notes}";
 const MAX_AUDIO_BYTES: usize = 200 * 1024 * 1024;
 const MIN_TRANSCRIBABLE_AUDIO_SECONDS: f64 = 0.25;
 const SHORT_AUDIO_PEAK_THRESHOLD: f64 = 0.08;
@@ -593,6 +594,8 @@ impl VoiceToTextService {
         notes: &[(String, String)], // (title, text) pairs, in desired order
         mode: &str,
         instruction: Option<&str>,
+        model_alias: Option<&str>,
+        prompt_template: Option<&str>,
     ) -> AppResult<String> {
         if notes.is_empty() {
             return Err(AppError::bad_request("合成対象のノートがありません"));
@@ -616,7 +619,7 @@ impl VoiceToTextService {
         }
 
         // LLM mode
-        let model = self.ensure_chat_model().await?;
+        let model = self.ensure_chat_model_by_alias(model_alias).await?;
         let client = model.create_chat_client().temperature(0.2).max_tokens(2048);
         let bodies = notes
             .iter()
@@ -631,14 +634,13 @@ impl VoiceToTextService {
             })
             .collect::<Vec<_>>()
             .join("\n\n");
-        let extra = instruction
+        let instruction_block = instruction
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(|s| format!("\n- Additional instruction: {s}"))
             .unwrap_or_default();
-        let user_prompt = format!(
-            "Reconstruct the following notes into one coherent document.\n\nRules:\n- Output in the same language as the input.\n- Merge duplicate content.\n- Use appropriate Markdown headings (#, ##), paragraphs, and bullet lists for readability.\n- Do not add information that is not present in the input.\n- Respect the note order while creating a natural flow.\n- Do not output a preface, explanation, or code fence.\n- Output only the Markdown body.{extra}\n\nInput notes:\n{bodies}"
-        );
+        let user_prompt =
+            build_draft_prompt(prompt_template, &bodies, instruction, &instruction_block);
         let messages: Vec<ChatCompletionRequestMessage> = vec![
             ChatCompletionRequestSystemMessage::from(
                 "You are an editor who turns multiple notes into one coherent article. Output only the Markdown body.",
@@ -657,16 +659,42 @@ impl VoiceToTextService {
             .unwrap_or("")
             .trim()
             .to_string();
-        if text.is_empty() {
+        let mut cleaned = clean_draft_llm_output(&text);
+        if cleaned.is_empty() {
             return Err(AppError::internal("合成結果が空でした"));
         }
-        let cleaned = text
-            .trim_start_matches("```markdown")
-            .trim_start_matches("```md")
-            .trim_start_matches("```")
-            .trim_end_matches("```")
-            .trim()
-            .to_string();
+
+        if draft_output_looks_like_prompt_echo(&cleaned) {
+            let retry_prompt = format!(
+                "Create the final Markdown article from the source notes below.\n\nRequirements:\n- Return only the finished article body.\n- Do not repeat the task, requirements, source labels, or source notes.\n- Keep the same language as the source notes.\n- Merge overlapping ideas and preserve only facts present in the source.\n- Use clear Markdown headings and paragraphs.{instruction_block}\n\nSOURCE NOTES START\n{bodies}\nSOURCE NOTES END\n\nFINAL ARTICLE:"
+            );
+            let retry_messages: Vec<ChatCompletionRequestMessage> = vec![
+                ChatCompletionRequestSystemMessage::from(
+                    "You write final articles from source notes. The next answer must be only the final article body, never the prompt or source labels.",
+                )
+                .into(),
+                ChatCompletionRequestUserMessage::from(retry_prompt.as_str()).into(),
+            ];
+            let retry_response = client
+                .complete_chat(&retry_messages, None)
+                .await
+                .map_err(AppError::internal)?;
+            let retry_text = retry_response.choices[0]
+                .message
+                .content
+                .as_deref()
+                .unwrap_or("");
+            cleaned = clean_draft_llm_output(retry_text);
+            if cleaned.is_empty() {
+                return Err(AppError::internal("合成結果が空でした"));
+            }
+            if draft_output_looks_like_prompt_echo(&cleaned) {
+                return Err(AppError::internal(
+                    "LLMが再構成結果ではなくプロンプトを返しました。入力を短くするか、追加指示を簡潔にして再実行してください。",
+                ));
+            }
+        }
+
         Ok(cleaned)
     }
 
@@ -2844,8 +2872,10 @@ struct ComposeDraftRequest {
     project_id: String,
     title: Option<String>,
     note_ids: Vec<String>,
-    mode: Option<String>,        // "concat" | "llm"
-    instruction: Option<String>, // used only for llm mode
+    mode: Option<String>,            // "concat" | "llm"
+    instruction: Option<String>,     // per-draft instruction, used only for llm mode
+    model: Option<String>,           // LLM alias, used only for llm mode
+    prompt_template: Option<String>, // draft prompt template, used only for llm mode
 }
 
 async fn compose_draft_handler(
@@ -2866,7 +2896,13 @@ async fn compose_draft_handler(
         .collect();
     let content = state
         .voice_to_text
-        .compose_draft(&pairs, mode, input.instruction.as_deref())
+        .compose_draft(
+            &pairs,
+            mode,
+            input.instruction.as_deref(),
+            input.model.as_deref(),
+            input.prompt_template.as_deref(),
+        )
         .await?;
     let title = input
         .title
@@ -4257,6 +4293,125 @@ fn strip_llm_preamble(text: &str) -> String {
         .to_string()
 }
 
+fn build_draft_prompt(
+    prompt_template: Option<&str>,
+    bodies: &str,
+    instruction: Option<&str>,
+    instruction_block: &str,
+) -> String {
+    let template = prompt_template
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(DEFAULT_DRAFT_PROMPT_TEMPLATE);
+    let instruction_text = instruction
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("");
+
+    let mut prompt = template
+        .replace("{notes}", bodies)
+        .replace("{input_notes}", bodies)
+        .replace("{instruction}", instruction_block.trim())
+        .replace("{additional_instruction}", instruction_text);
+
+    if !template.contains("{notes}") && !template.contains("{input_notes}") {
+        prompt.push_str("\n\nInput notes:\n");
+        prompt.push_str(bodies);
+    }
+
+    if !instruction_text.is_empty()
+        && !template.contains("{instruction}")
+        && !template.contains("{additional_instruction}")
+    {
+        prompt.push_str("\n\nAdditional instruction:\n");
+        prompt.push_str(instruction_text);
+    }
+
+    prompt.trim().to_string()
+}
+
+fn clean_draft_llm_output(text: &str) -> String {
+    let preamble_stripped = strip_llm_preamble(text);
+    let mut cleaned = preamble_stripped.trim();
+
+    if cleaned.starts_with("```") {
+        if let Some((_, body)) = cleaned.split_once('\n') {
+            cleaned = body.trim();
+        }
+        if let Some(body) = cleaned.strip_suffix("```") {
+            cleaned = body.trim_end();
+        }
+    }
+
+    let labels = [
+        "final article:",
+        "article:",
+        "draft:",
+        "markdown:",
+        "output:",
+        "本文:",
+        "最終記事:",
+        "ドラフト:",
+    ];
+    loop {
+        let Some(first_line) = cleaned.lines().next() else {
+            break;
+        };
+        let first_line_lower = first_line.trim().to_ascii_lowercase();
+        if !labels.iter().any(|label| first_line_lower == *label) {
+            break;
+        }
+        cleaned = cleaned[first_line.len()..].trim_start();
+    }
+
+    cleaned.trim().to_string()
+}
+
+fn draft_output_looks_like_prompt_echo(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.starts_with("reconstruct the following notes")
+        || lower.starts_with("create the final markdown article")
+    {
+        return true;
+    }
+
+    let prompt_markers = [
+        "input notes:",
+        "source notes start",
+        "source notes end",
+        "requirements:",
+        "rules:",
+        "additional instruction:",
+        "output only the markdown body",
+        "return only the finished article",
+        "do not repeat the task",
+        "do not add information",
+        "merge duplicate content",
+        "respect the note order",
+    ];
+    let marker_count = prompt_markers
+        .iter()
+        .filter(|marker| lower.contains(**marker))
+        .count();
+    if marker_count >= 2 {
+        return true;
+    }
+
+    let source_label_count = trimmed
+        .lines()
+        .filter(|line| {
+            let line = line.trim_start();
+            line.starts_with("### [") || line.starts_with("## [")
+        })
+        .count();
+    source_label_count >= 2 || (source_label_count >= 1 && marker_count >= 1)
+}
+
 fn live_translation_output_is_invalid(text: &str) -> bool {
     let trimmed = text.trim();
     if trimmed.is_empty() {
@@ -4926,6 +5081,7 @@ fn main() {
 
             let window_url = format!("http://{LOOPBACK_IP}:{port}/index");
             println!("Serving SeeDraft UI at {window_url}");
+            let start_minimized = settings::load_app_settings().start_minimized;
 
             tauri::WebviewWindowBuilder::new(
                 app,
@@ -4935,6 +5091,7 @@ fn main() {
             .title("SeeDraft")
             .inner_size(1400.0, 900.0)
             .min_inner_size(1024.0, 720.0)
+            .visible(!start_minimized)
             .disable_drag_drop_handler()
             .build()?;
 
@@ -5053,5 +5210,51 @@ mod tests {
             "今日は新しい機能について説明します。",
             "今日は新しい機能について説明します。"
         ));
+    }
+
+    #[test]
+    fn draft_echo_guard_rejects_repeated_prompt() {
+        let echoed = "Reconstruct the following notes into one coherent document.\n\nRules:\n- Output only the Markdown body.\n\nInput notes:\n### [1] Memo\nBody";
+        assert!(draft_output_looks_like_prompt_echo(echoed));
+    }
+
+    #[test]
+    fn draft_echo_guard_allows_article_body() {
+        let article = "# 週次まとめ\n\n今週は入力体験を改善し、初回起動時の案内を整理しました。";
+        assert!(!draft_output_looks_like_prompt_echo(article));
+    }
+
+    #[test]
+    fn draft_cleaner_strips_fences_and_answer_label() {
+        let raw = "```markdown\nFinal article:\n# 週次まとめ\n\n本文です。\n```";
+        assert_eq!(
+            clean_draft_llm_output(raw),
+            "# 週次まとめ\n\n本文です。".to_string()
+        );
+    }
+
+    #[test]
+    fn draft_prompt_template_fills_placeholders() {
+        let prompt = build_draft_prompt(
+            Some("Write it.\n{instruction}\n\n{notes}"),
+            "### [1] Note\nBody",
+            Some("Use polite style."),
+            "\n- Additional instruction: Use polite style.",
+        );
+        assert!(prompt.contains("Additional instruction: Use polite style."));
+        assert!(prompt.contains("### [1] Note\nBody"));
+    }
+
+    #[test]
+    fn draft_prompt_template_appends_notes_when_placeholder_missing() {
+        let prompt = build_draft_prompt(
+            Some("Write one article."),
+            "### [1] Note\nBody",
+            Some("Start with decisions."),
+            "\n- Additional instruction: Start with decisions.",
+        );
+        assert!(prompt.contains("Write one article."));
+        assert!(prompt.contains("Input notes:\n### [1] Note\nBody"));
+        assert!(prompt.contains("Additional instruction:\nStart with decisions."));
     }
 }

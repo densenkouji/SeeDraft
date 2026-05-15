@@ -316,6 +316,8 @@
                         data-i18n="settings.tab.transcription">文字起こし</button>
                     <button class="settings-tab-button" type="button" data-tab="postprocess"
                         data-i18n="settings.tab.postprocess">後処理</button>
+                    <button class="settings-tab-button" type="button" data-tab="draft"
+                        data-i18n="settings.tab.draft">ドラフト</button>
                     <button class="settings-tab-button" type="button" data-tab="models"
                         data-i18n="settings.tab.models">モデル</button>
                     <button class="settings-tab-button" type="button" data-tab="output"
@@ -539,6 +541,27 @@
                         </div>
                     </div>
 
+                    <div class="settings-panel" data-panel="draft" hidden>
+                        <div class="postprocess-section">
+                            <h3 class="section-title" data-i18n="settings.draft.title">ドラフト設定</h3>
+                            <p class="field-hint" data-i18n="settings.draft.hint">
+                                ノート選択から「LLM再構成」を実行するときに使用するモデルとプロンプトです。</p>
+                            <label class="field-label" for="draftModel"
+                                data-i18n="settings.draft.model">使用するモデル</label>
+                            <select id="draftModel" class="post-model-select"></select>
+                            <label class="field-label" for="draftPromptTemplate"
+                                data-i18n="settings.draft.prompt">プロンプトテンプレート</label>
+                            <textarea id="draftPromptTemplate" class="small-textarea draft-prompt-textarea"
+                                spellcheck="false"></textarea>
+                            <p class="field-hint field-hint-sub" data-i18n="settings.draft.promptHint">
+                                {notes} に選択したノート、{instruction} に作成時の追加指示が入ります。</p>
+                            <div class="settings-inline-actions">
+                                <button id="draftPromptReset" class="secondary-button" type="button"
+                                    data-i18n="settings.draft.promptReset">既定のプロンプトに戻す</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="settings-panel" data-panel="models" hidden>
                         <div class="models-summary" id="modelsSummary">
                             <div class="models-summary-row">
@@ -619,6 +642,15 @@
                     </div>
 
                     <div class="settings-panel" data-panel="appearance" hidden>
+                        <label class="quick-toggle appearance-toggle">
+                            <input id="startMinimized" type="checkbox" />
+                            <span class="quick-toggle-text"
+                                data-i18n="settings.appearance.startMinimized">起動時は最小化して起動する</span>
+                        </label>
+                        <p class="field-hint field-hint-sub"
+                            data-i18n="settings.appearance.startMinimizedHint">
+                            ON の場合、起動時にメイン画面を表示せずシステムトレイに格納します。</p>
+
                         <label class="field-label" for="uiTheme" data-i18n="settings.appearance.theme">テーマ</label>
                         <select id="uiTheme">
                             <option value="auto" data-i18n="settings.appearance.themeAuto">システム設定に合わせる</option>
@@ -1021,6 +1053,13 @@
                 "settings.complete.title": "補完設定",
                 "settings.complete.hint": "ノート編集画面の「✨ 補完」ボタンで本文の続きを生成します。リンク先ノートのコンテキストが有効な場合は関連ノートを踏まえた続きが生成されます。",
                 "settings.complete.model": "使用するモデル",
+                "settings.draft.title": "ドラフト設定",
+                "settings.draft.hint": "ノート選択から「LLM再構成」を実行するときに使用するモデルとプロンプトです。",
+                "settings.draft.model": "使用するモデル",
+                "settings.draft.prompt": "プロンプトテンプレート",
+                "settings.draft.promptHint": "{notes} に選択したノート、{instruction} に作成時の追加指示が入ります。",
+                "settings.draft.promptReset": "既定のプロンプトに戻す",
+                "settings.draft.promptResetDone": "ドラフト用プロンプトを既定値に戻しました",
                 "settings.analyze.title": "抽出設定",
                 "settings.analyze.hint": "トーン・要点・キーワードを抽出します。",
                 "settings.analyze.model": "使用するモデル",
@@ -1062,6 +1101,7 @@
                 "settings.title": "設定",
                 "settings.tab.transcription": "文字起こし",
                 "settings.tab.postprocess": "後処理",
+                "settings.tab.draft": "ドラフト",
                 "settings.tab.history": "履歴",
                 "settings.tab.output": "出力",
                 "settings.tab.appearance": "表示",
@@ -1243,6 +1283,8 @@
                 "settings.appearance.localeHint": "このフォルダに xx.json を追加すると新しい言語を追加できます:",
                 "settings.appearance.localesCopied": "パスをコピーしました",
                 "settings.appearance.localesDirChanged": "言語ファイルの保存先を更新しました。画面を再読込します",
+                "settings.appearance.startMinimized": "起動時は最小化して起動する",
+                "settings.appearance.startMinimizedHint": "ON の場合、起動時にメイン画面を表示せずシステムトレイに格納します。",
                 "settings.appearance.theme": "テーマ",
                 "settings.appearance.themeAuto": "システム設定に合わせる",
                 "settings.appearance.themeLight": "ライト",
@@ -1514,6 +1556,13 @@
                 "settings.complete.title": "Completion",
                 "settings.complete.hint": "The \"✨ Complete\" button in the note editor extends the body with a continuation. When linked-note context is enabled, related notes are used as background.",
                 "settings.complete.model": "Model to use",
+                "settings.draft.title": "Draft",
+                "settings.draft.hint": "Model and prompt used when note selection runs LLM reconstruction.",
+                "settings.draft.model": "Model to use",
+                "settings.draft.prompt": "Prompt template",
+                "settings.draft.promptHint": "{notes} is replaced with the selected notes. {instruction} is replaced with the extra instruction entered at creation time.",
+                "settings.draft.promptReset": "Restore default prompt",
+                "settings.draft.promptResetDone": "Draft prompt restored to default",
                 "settings.analyze.title": "Extraction",
                 "settings.analyze.hint": "Extract tone, summary and keywords.",
                 "settings.analyze.model": "Model to use",
@@ -1555,6 +1604,7 @@
                 "settings.title": "Settings",
                 "settings.tab.transcription": "Transcription",
                 "settings.tab.postprocess": "Post-processing",
+                "settings.tab.draft": "Draft",
                 "settings.tab.history": "History",
                 "settings.tab.output": "Output",
                 "settings.tab.appearance": "Appearance",
@@ -1736,6 +1786,8 @@
                 "settings.appearance.localeHint": "Drop a xx.json file into this folder to add a language:",
                 "settings.appearance.localesCopied": "Path copied",
                 "settings.appearance.localesDirChanged": "Locale folder updated. Reloading the UI",
+                "settings.appearance.startMinimized": "Start minimized",
+                "settings.appearance.startMinimizedHint": "When enabled, SeeDraft starts in the system tray without showing the main window.",
                 "settings.appearance.theme": "Theme",
                 "settings.appearance.themeAuto": "Follow system",
                 "settings.appearance.themeLight": "Light",
@@ -2062,9 +2114,23 @@
         const INPUT_SOURCE_KEY = "seedraft_input_source";
         const DEFAULT_SPEECH_MODEL_ALIAS = "whisper-tiny";
         const DEFAULT_CHAT_MODEL_ALIAS = "qwen2.5-coder-0.5b";
-        // Per-post-processing-step LLM selection.
-        // Custom steps carry their own `model` field in the step object itself,
-        // so only refine/translate defaults are persisted here.
+        const DEFAULT_DRAFT_PROMPT_TEMPLATE = `Reconstruct the following notes into one coherent document.
+
+Rules:
+- Output in the same language as the input.
+- Merge duplicate content.
+- Use appropriate Markdown headings (#, ##), paragraphs, and bullet lists for readability.
+- Do not add information that is not present in the input.
+- Respect the note order while creating a natural flow.
+- Do not output a preface, explanation, or code fence.
+- Output only the Markdown body.
+{instruction}
+
+Input notes:
+{notes}`;
+        const DRAFT_PROMPT_KEY = "seedraft_draft_prompt_template";
+        // Per-feature LLM selection. Custom steps carry their own `model`
+        // field in the step object itself.
         const POST_MODEL_KEY = "seedraft_post_models";
         const loadPostModelPrefs = () => {
             try {
@@ -2079,7 +2145,8 @@
                     refine: refineModel?.value || "",
                     translate: translateModel?.value || "",
                     analyze: analyzeModel?.value || "",
-                    complete: completeModel?.value || ""
+                    complete: completeModel?.value || "",
+                    draft: draftModel?.value || ""
                 }));
             } catch { }
         };
@@ -2101,6 +2168,33 @@
                 const exists = Array.from(completeModel.options).some(o => o.value === prefs.complete);
                 if (exists) completeModel.value = prefs.complete;
             }
+            if (draftModel && prefs.draft) {
+                const exists = Array.from(draftModel.options).some(o => o.value === prefs.draft);
+                if (exists) draftModel.value = prefs.draft;
+            }
+        };
+        const loadDraftPromptTemplate = () => {
+            try {
+                const saved = localStorage.getItem(DRAFT_PROMPT_KEY);
+                return saved && saved.trim() ? saved : DEFAULT_DRAFT_PROMPT_TEMPLATE;
+            } catch {
+                return DEFAULT_DRAFT_PROMPT_TEMPLATE;
+            }
+        };
+        const saveDraftPromptTemplate = () => {
+            if (!draftPromptTemplate) return;
+            try {
+                const value = draftPromptTemplate.value.trim();
+                if (!value || value === DEFAULT_DRAFT_PROMPT_TEMPLATE) {
+                    localStorage.removeItem(DRAFT_PROMPT_KEY);
+                } else {
+                    localStorage.setItem(DRAFT_PROMPT_KEY, draftPromptTemplate.value);
+                }
+            } catch { }
+        };
+        const getDraftPromptTemplate = () => {
+            const value = draftPromptTemplate?.value?.trim();
+            return value || DEFAULT_DRAFT_PROMPT_TEMPLATE;
         };
         const loadSpeechModelPreference = () => {
             try {
@@ -2184,6 +2278,9 @@
         const translateModel = document.getElementById("translateModel");
         const analyzeModel = document.getElementById("analyzeModel");
         const completeModel = document.getElementById("completeModel");
+        const draftModel = document.getElementById("draftModel");
+        const draftPromptTemplate = document.getElementById("draftPromptTemplate");
+        const draftPromptReset = document.getElementById("draftPromptReset");
         const linkedContextToggle = document.getElementById("linkedContextToggle");
         const linkedContextEnabled = () => !!linkedContextToggle?.checked;
         const LINKED_CONTEXT_KEY = "seedraft_linked_context_enabled";
@@ -2224,6 +2321,7 @@
         const translationInstruction = document.getElementById("translationInstruction");
         const uiLanguage = document.getElementById("uiLanguage");
         const uiTheme = document.getElementById("uiTheme");
+        const startMinimized = document.getElementById("startMinimized");
         const localesDirInput = document.getElementById("localesDirInput");
         const chooseLocalesDirButton = document.getElementById("chooseLocalesDirButton");
         const resetLocalesDirButton = document.getElementById("resetLocalesDirButton");
@@ -2984,10 +3082,14 @@
         let appSettingsCache = {
             configured_locales_dir: null,
             locales_dir: LOCALES_DIR || "",
-            default_locales_dir: ""
+            default_locales_dir: "",
+            start_minimized: false
         };
 
         const renderAppSettings = () => {
+            if (startMinimized) {
+                startMinimized.checked = !!appSettingsCache.start_minimized;
+            }
             if (localesDirInput) {
                 localesDirInput.value = appSettingsCache.locales_dir || LOCALES_DIR || "";
             }
@@ -3010,6 +3112,7 @@
         const saveAppSettings = async (patch) => {
             const body = {
                 locales_dir: appSettingsCache.configured_locales_dir || null,
+                start_minimized: !!appSettingsCache.start_minimized,
                 ...patch
             };
             const response = await fetch("/api/app/settings", {
@@ -3076,7 +3179,7 @@
 
         const selectedPostProcessingModelAliases = () => {
             const aliases = new Set();
-            const fixedSelects = [refineModel, translateModel, analyzeModel, completeModel];
+            const fixedSelects = [refineModel, translateModel, analyzeModel, completeModel, draftModel];
             const usesDefault = fixedSelects.some(select => select && !select.value);
 
             fixedSelects.forEach(select => {
@@ -3552,6 +3655,7 @@
             populatePostModelSelect(translateModel);
             populatePostModelSelect(analyzeModel);
             populatePostModelSelect(completeModel);
+            populatePostModelSelect(draftModel);
             populatePostModelSelect(customStepModel);
         };
 
@@ -3635,6 +3739,7 @@
         translateModel?.addEventListener("change", handlePostModelChange);
         analyzeModel?.addEventListener("change", handlePostModelChange);
         completeModel?.addEventListener("change", handlePostModelChange);
+        draftModel?.addEventListener("change", handlePostModelChange);
         const refreshSpeechModels = async () => {
             if (speechModelStates.length === 0) {
                 modelListLoading = true;
@@ -4016,6 +4121,22 @@
             }
         };
 
+        if (draftPromptTemplate) {
+            draftPromptTemplate.value = loadDraftPromptTemplate();
+        }
+        let draftPromptSaveTimer = null;
+        const autoSaveDraftPrompt = () => {
+            if (draftPromptSaveTimer) clearTimeout(draftPromptSaveTimer);
+            draftPromptSaveTimer = setTimeout(saveDraftPromptTemplate, 250);
+        };
+        draftPromptTemplate?.addEventListener("input", autoSaveDraftPrompt);
+        draftPromptReset?.addEventListener("click", () => {
+            if (!draftPromptTemplate) return;
+            draftPromptTemplate.value = DEFAULT_DRAFT_PROMPT_TEMPLATE;
+            saveDraftPromptTemplate();
+            showToast(t("settings.draft.promptResetDone"), "success");
+        });
+
         // All inputs that should trigger an autosave when the user changes them.
         // `linkedContextToggle` has its own dedicated storage key — it's not
         // part of the post-process preset so we don't include it here.
@@ -4056,6 +4177,7 @@
                 MAX_RECORDING_SECONDS_KEY,
                 MICROPHONE_DEVICE_KEY,
                 "seedraft_post_models",
+                DRAFT_PROMPT_KEY,
                 "seedraft_speech_model",
                 "seedraft_custom_steps",
                 "seedraft_ui_theme",
@@ -6147,7 +6269,9 @@
                         title: composeDraftTitle.value.trim(),
                         note_ids: ordered,
                         mode,
-                        instruction: mode === "llm" ? composeDraftInstruction.value : null
+                        instruction: mode === "llm" ? composeDraftInstruction.value : null,
+                        model: mode === "llm" ? (draftModel?.value || "") : null,
+                        prompt_template: mode === "llm" ? getDraftPromptTemplate() : null
                     })
                 });
                 if (!response.ok) {
@@ -7504,6 +7628,14 @@
                 showToast(t("settings.appearance.localesDirChanged"), "success");
                 setTimeout(() => location.reload(), 450);
             } catch (error) {
+                showErrorBanner((error && error.message) || "settings update failed");
+            }
+        });
+        startMinimized?.addEventListener("change", async () => {
+            try {
+                await saveAppSettings({ start_minimized: startMinimized.checked });
+            } catch (error) {
+                startMinimized.checked = !!appSettingsCache.start_minimized;
                 showErrorBanner((error && error.message) || "settings update failed");
             }
         });
@@ -14244,6 +14376,18 @@
 
     .small-textarea {
         min-height: 72px;
+    }
+
+    .draft-prompt-textarea {
+        min-height: 240px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.86rem;
+    }
+
+    .settings-inline-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 12px;
     }
 
     .toggle-row {
