@@ -2,10 +2,6 @@
 
 Last updated: 2026-05-15
 
-> Publication checklist: before submitting this policy to Microsoft Store, replace
-> `TODO: privacy contact` with a real support email, contact form, or other
-> private contact channel controlled by the publisher.
-
 ## 日本語
 
 ### 1. 適用範囲
@@ -132,7 +128,7 @@ OS、セキュリティソフト、ファイルロックなどの事情により
 本ポリシーまたは本アプリのプライバシーに関するお問い合わせは、次の連絡先へ
 お願いします。
 
-TODO: privacy contact
+https://github.com/densenkouji/SeeDraft/issues
 
 ## English
 
@@ -256,4 +252,4 @@ distribution page, release notes, or an updated version of this policy.
 
 For privacy questions about this policy or the App, contact:
 
-TODO: privacy contact
+[privacy contact](https://github.com/densenkouji/SeeDraft/issues)
