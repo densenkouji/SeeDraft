@@ -112,7 +112,7 @@ No API keys are required for SeeDraft itself. During development, model executio
 
 ## Requirements
 
-- Windows 10/11 x64
+- Windows 11 x64
 - Rust toolchain, edition 2024
 - Microsoft C++ Build Tools / MSVC
 - Foundry Local SDK checked out as a sibling directory at `../Foundry-Local/sdk/rust`
@@ -265,9 +265,13 @@ SQLite tables are created and migrated by `src/storage.rs`:
 - [ ] Automated release workflow and signing
 - [ ] macOS / Linux support when the local runtime stack allows it
 
+## Privacy
+
+See [Privacy Policy](docs/legal/privacy-policy.md).
+
 ## License
 
-MIT.
+MIT
 
 ## Acknowledgements
 
