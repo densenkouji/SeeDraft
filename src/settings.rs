@@ -1,8 +1,11 @@
 use axum::Json;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use crate::{AppError, AppResult};
+
+// ---------- Types ----------
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub(crate) struct AppSettings {
@@ -37,16 +40,17 @@ pub(crate) struct PickFolderResponse {
     path: Option<String>,
 }
 
-fn app_settings_response(settings: AppSettings) -> AppSettingsResponse {
-    let start_minimized = settings.start_minimized;
-    let configured_locales_dir = normalize_settings_dir(settings.locales_dir);
-    AppSettingsResponse {
-        configured_locales_dir: configured_locales_dir.clone(),
-        locales_dir: locales_dir().display().to_string(),
-        default_locales_dir: default_locales_dir().display().to_string(),
-        start_minimized,
-    }
+#[derive(Serialize)]
+pub(crate) struct LocalesResponse {
+    /// Map of locale code → translation dictionary. Each dictionary is a
+    /// flat `{ key: string }` object matching what the frontend expects.
+    locales: BTreeMap<String, serde_json::Value>,
+    /// Filesystem path where the locale JSON files live — shown to the user
+    /// so they can edit or add new languages.
+    dir: String,
 }
+
+// ---------- Handlers ----------
 
 pub(crate) async fn app_settings_handler() -> AppResult<Json<AppSettingsResponse>> {
     Ok(Json(app_settings_response(load_app_settings())))
@@ -79,10 +83,10 @@ pub(crate) async fn pick_folder_handler(
 ) -> AppResult<Json<PickFolderResponse>> {
     let path = tokio::task::spawn_blocking(move || {
         let mut dialog = rfd::FileDialog::new();
-        if let Some(title) = request.title.filter(|value| !value.trim().is_empty()) {
+        if let Some(title) = request.title.filter(|v| !v.trim().is_empty()) {
             dialog = dialog.set_title(title);
         }
-        if let Some(dir) = request.current_dir.filter(|value| !value.trim().is_empty()) {
+        if let Some(dir) = request.current_dir.filter(|v| !v.trim().is_empty()) {
             dialog = dialog.set_directory(dir);
         }
         dialog.pick_folder()
@@ -94,18 +98,38 @@ pub(crate) async fn pick_folder_handler(
     Ok(Json(PickFolderResponse { path }))
 }
 
+pub(crate) async fn locales_handler() -> AppResult<Json<LocalesResponse>> {
+    let dir = ensure_default_locales();
+    let locales = read_locale_dir(&dir);
+    Ok(Json(LocalesResponse {
+        locales,
+        dir: dir.display().to_string(),
+    }))
+}
+
+// ---------- Paths ----------
+
+const PROJECT_QUALIFIER: &str = "dev";
+const PROJECT_ORGANIZATION: &str = "SeeDraft";
+const PROJECT_APPLICATION: &str = "SeeDraft";
+
+fn project_data_dir() -> Option<PathBuf> {
+    directories::ProjectDirs::from(
+        PROJECT_QUALIFIER,
+        PROJECT_ORGANIZATION,
+        PROJECT_APPLICATION,
+    )
+    .map(|dirs| dirs.data_dir().to_path_buf())
+}
+
 pub(crate) fn storage_db_path() -> PathBuf {
-    if let Some(dirs) = directories::ProjectDirs::from("dev", "SeeDraft", "SeeDraft") {
-        return dirs.data_dir().join("seedraft.sqlite");
-    }
-    std::env::temp_dir().join("seedraft.sqlite")
+    project_data_dir()
+        .map(|dir| dir.join("seedraft.sqlite"))
+        .unwrap_or_else(|| std::env::temp_dir().join("seedraft.sqlite"))
 }
 
 fn app_data_dir() -> PathBuf {
-    if let Some(dirs) = directories::ProjectDirs::from("dev", "SeeDraft", "SeeDraft") {
-        return dirs.data_dir().to_path_buf();
-    }
-    std::env::temp_dir().join("seedraft")
+    project_data_dir().unwrap_or_else(|| std::env::temp_dir().join("seedraft"))
 }
 
 fn app_settings_path() -> PathBuf {
@@ -115,7 +139,7 @@ fn app_settings_path() -> PathBuf {
 fn executable_dir() -> Option<PathBuf> {
     std::env::current_exe()
         .ok()
-        .and_then(|path| path.parent().map(|parent| parent.to_path_buf()))
+        .and_then(|path| path.parent().map(Path::to_path_buf))
 }
 
 fn default_locales_dir() -> PathBuf {
@@ -124,6 +148,14 @@ fn default_locales_dir() -> PathBuf {
         .join("locales")
 }
 
+fn locales_dir() -> PathBuf {
+    normalize_settings_dir(load_app_settings().locales_dir)
+        .map(PathBuf::from)
+        .unwrap_or_else(default_locales_dir)
+}
+
+// ---------- Settings persistence ----------
+
 fn normalize_settings_dir(value: Option<String>) -> Option<String> {
     value
         .map(|path| path.trim().to_string())
@@ -131,8 +163,7 @@ fn normalize_settings_dir(value: Option<String>) -> Option<String> {
 }
 
 pub(crate) fn load_app_settings() -> AppSettings {
-    let path = app_settings_path();
-    let Ok(raw) = std::fs::read_to_string(path) else {
+    let Ok(raw) = std::fs::read_to_string(app_settings_path()) else {
         return AppSettings::default();
     };
     serde_json::from_str(&raw).unwrap_or_default()
@@ -147,48 +178,25 @@ fn save_app_settings(settings: &AppSettings) -> Result<(), String> {
     std::fs::write(path, pretty).map_err(|e| e.to_string())
 }
 
-fn locales_dir() -> PathBuf {
-    normalize_settings_dir(load_app_settings().locales_dir)
-        .map(PathBuf::from)
-        .unwrap_or_else(default_locales_dir)
+fn app_settings_response(settings: AppSettings) -> AppSettingsResponse {
+    AppSettingsResponse {
+        configured_locales_dir: normalize_settings_dir(settings.locales_dir),
+        locales_dir: locales_dir().display().to_string(),
+        default_locales_dir: default_locales_dir().display().to_string(),
+        start_minimized: settings.start_minimized,
+    }
 }
+
+// ---------- Locales ----------
 
 /// Default locale files embedded in the binary. These are seeded into the
 /// configured locales directory on first launch so they can be freely edited.
 /// Extra languages can be added by dropping further `*.json` files into that
 /// folder; any locale present there is exposed to the frontend via `/api/locales`.
-const DEFAULT_LOCALE_EN: &str = include_str!("locales/en.json");
-const DEFAULT_LOCALE_JA: &str = include_str!("locales/ja.json");
-
-/// Copy bundled locale files into the user's data directory the first time
-/// the app runs, and keep previously-deployed files in sync as the app adds
-/// new translation keys. User edits are preserved — only *missing* keys are
-/// added from the bundled defaults.
-fn ensure_default_locales() -> PathBuf {
-    let dir = locales_dir();
-    if let Err(error) = std::fs::create_dir_all(&dir) {
-        eprintln!("failed to create locales dir: {error}");
-        return dir;
-    }
-    for (name, contents) in [
-        ("en.json", DEFAULT_LOCALE_EN),
-        ("ja.json", DEFAULT_LOCALE_JA),
-    ] {
-        let path = dir.join(name);
-        if !path.exists() {
-            if let Err(error) = std::fs::write(&path, contents) {
-                eprintln!("failed to write default locale {name}: {error}");
-            }
-            continue;
-        }
-        // Existing file: merge in any keys the user is missing so newer app
-        // versions don't leave English strings untranslated or vice versa.
-        if let Err(error) = merge_missing_keys(&path, contents) {
-            eprintln!("failed to merge default locale {name}: {error}");
-        }
-    }
-    dir
-}
+const DEFAULT_LOCALES: &[(&str, &str)] = &[
+    ("en.json", include_str!("locales/en.json")),
+    ("ja.json", include_str!("locales/ja.json")),
+];
 
 /// Known outdated default values that should be force-refreshed on upgrade.
 /// If the user's locale file still has the *old* bundled text for one of these
@@ -285,20 +293,45 @@ const OUTDATED_DEFAULTS: &[(&str, &str)] = &[
     ),
 ];
 
-fn merge_missing_keys(path: &std::path::Path, defaults_json: &str) -> Result<(), String> {
-    let existing_raw = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let mut existing: serde_json::Map<String, serde_json::Value> =
-        match serde_json::from_str::<serde_json::Value>(&existing_raw) {
-            Ok(serde_json::Value::Object(map)) => map,
-            Ok(_) => return Err("locale file is not a JSON object".to_string()),
-            Err(error) => return Err(error.to_string()),
-        };
+/// Copy bundled locale files into the user's data directory the first time
+/// the app runs, and keep previously-deployed files in sync as the app adds
+/// new translation keys. User edits are preserved — only *missing* keys are
+/// added from the bundled defaults.
+fn ensure_default_locales() -> PathBuf {
+    let dir = locales_dir();
+    if let Err(error) = std::fs::create_dir_all(&dir) {
+        eprintln!("failed to create locales dir: {error}");
+        return dir;
+    }
+    for (name, contents) in DEFAULT_LOCALES {
+        let path = dir.join(name);
+        if !path.exists() {
+            if let Err(error) = std::fs::write(&path, contents) {
+                eprintln!("failed to write default locale {name}: {error}");
+            }
+            continue;
+        }
+        // Existing file: merge in any keys the user is missing so newer app
+        // versions don't leave English strings untranslated or vice versa.
+        if let Err(error) = merge_missing_keys(&path, contents) {
+            eprintln!("failed to merge default locale {name}: {error}");
+        }
+    }
+    dir
+}
 
-    let defaults: serde_json::Map<String, serde_json::Value> =
-        match serde_json::from_str::<serde_json::Value>(defaults_json) {
-            Ok(serde_json::Value::Object(map)) => map,
-            _ => return Err("bundled defaults are not a JSON object".to_string()),
-        };
+fn parse_object(text: &str) -> Result<serde_json::Map<String, serde_json::Value>, String> {
+    match serde_json::from_str::<serde_json::Value>(text) {
+        Ok(serde_json::Value::Object(map)) => Ok(map),
+        Ok(_) => Err("expected a JSON object".to_string()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn merge_missing_keys(path: &Path, defaults_json: &str) -> Result<(), String> {
+    let raw = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let mut existing = parse_object(&raw)?;
+    let defaults = parse_object(defaults_json)?;
 
     let mut changed = 0usize;
 
@@ -312,13 +345,10 @@ fn merge_missing_keys(path: &std::path::Path, defaults_json: &str) -> Result<(),
 
     // 2) Refresh values that still hold an outdated bundled default.
     for (key, old_value) in OUTDATED_DEFAULTS {
-        let Some(current) = existing.get(*key) else {
+        let Some(current) = existing.get(*key).and_then(|v| v.as_str()) else {
             continue;
         };
-        let Some(current_str) = current.as_str() else {
-            continue;
-        };
-        if current_str != *old_value {
+        if current != *old_value {
             continue;
         }
         let Some(new_default) = defaults.get(*key) else {
@@ -336,31 +366,11 @@ fn merge_missing_keys(path: &std::path::Path, defaults_json: &str) -> Result<(),
     Ok(())
 }
 
-#[derive(Serialize)]
-pub(crate) struct LocalesResponse {
-    /// Map of locale code → translation dictionary. Each dictionary is a
-    /// flat `{ key: string }` object matching what the frontend expects.
-    locales: std::collections::BTreeMap<String, serde_json::Value>,
-    /// Filesystem path where the locale JSON files live — shown to the user
-    /// so they can edit or add new languages.
-    dir: String,
-}
-
-pub(crate) async fn locales_handler() -> AppResult<Json<LocalesResponse>> {
-    let dir = ensure_default_locales();
-    let mut locales: std::collections::BTreeMap<String, serde_json::Value> =
-        std::collections::BTreeMap::new();
-
-    let entries = match std::fs::read_dir(&dir) {
-        Ok(entries) => entries,
-        Err(_) => {
-            return Ok(Json(LocalesResponse {
-                locales,
-                dir: dir.display().to_string(),
-            }));
-        }
+fn read_locale_dir(dir: &Path) -> BTreeMap<String, serde_json::Value> {
+    let mut locales = BTreeMap::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return locales;
     };
-
     for entry in entries.flatten() {
         let path = entry.path();
         if path.extension().and_then(|s| s.to_str()) != Some("json") {
@@ -369,8 +379,8 @@ pub(crate) async fn locales_handler() -> AppResult<Json<LocalesResponse>> {
         let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
             continue;
         };
-        let lower = stem.to_ascii_lowercase();
-        if !lower
+        let code = stem.to_ascii_lowercase();
+        if !code
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
         {
@@ -379,7 +389,7 @@ pub(crate) async fn locales_handler() -> AppResult<Json<LocalesResponse>> {
         match std::fs::read_to_string(&path) {
             Ok(body) => match serde_json::from_str::<serde_json::Value>(&body) {
                 Ok(value) => {
-                    locales.insert(lower, value);
+                    locales.insert(code, value);
                 }
                 Err(error) => {
                     eprintln!("failed to parse locale {}: {error}", path.display());
@@ -390,9 +400,5 @@ pub(crate) async fn locales_handler() -> AppResult<Json<LocalesResponse>> {
             }
         }
     }
-
-    Ok(Json(LocalesResponse {
-        locales,
-        dir: dir.display().to_string(),
-    }))
+    locales
 }
