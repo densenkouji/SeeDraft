@@ -294,15 +294,27 @@ const OUTDATED_DEFAULTS: &[(&str, &str)] = &[
 ];
 
 /// Copy bundled locale files into the user's data directory the first time
-/// the app runs, and keep previously-deployed files in sync as the app adds
-/// new translation keys. User edits are preserved — only *missing* keys are
-/// added from the bundled defaults.
+/// the app runs, and keep previously-deployed files in sync.
+///
+/// **Debug builds** (`cargo run`): bundled values always win for keys that ship
+/// in `src/locales/*.json`, so edits to those source files show up immediately
+/// on the next `cargo run`. Keys the user has added on top of the bundle (i.e.
+/// not present in any shipped locale) are preserved.
+///
+/// **Release builds**: preserve the user's edits to existing keys and only add
+/// missing keys (plus the explicit `OUTDATED_DEFAULTS` force-refresh list).
+/// Set `SEEDRAFT_REFRESH_LOCALES=1` to force a full overwrite in a release
+/// build too, useful for QA after shipping a translation update.
 fn ensure_default_locales() -> PathBuf {
     let dir = locales_dir();
     if let Err(error) = std::fs::create_dir_all(&dir) {
         eprintln!("failed to create locales dir: {error}");
         return dir;
     }
+
+    let force_refresh =
+        cfg!(debug_assertions) || std::env::var_os("SEEDRAFT_REFRESH_LOCALES").is_some();
+
     for (name, contents) in DEFAULT_LOCALES {
         let path = dir.join(name);
         if !path.exists() {
@@ -311,13 +323,41 @@ fn ensure_default_locales() -> PathBuf {
             }
             continue;
         }
-        // Existing file: merge in any keys the user is missing so newer app
-        // versions don't leave English strings untranslated or vice versa.
-        if let Err(error) = merge_missing_keys(&path, contents) {
-            eprintln!("failed to merge default locale {name}: {error}");
+        let result = if force_refresh {
+            sync_from_bundled(&path, contents)
+        } else {
+            merge_missing_keys(&path, contents)
+        };
+        if let Err(error) = result {
+            eprintln!("failed to refresh locale {name}: {error}");
         }
     }
     dir
+}
+
+/// Overwrite every bundled key with the current bundled value, while
+/// preserving any extra keys the user has added that don't ship in the
+/// binary. Called by `ensure_default_locales` in debug builds and when
+/// `SEEDRAFT_REFRESH_LOCALES` is set.
+fn sync_from_bundled(path: &Path, defaults_json: &str) -> Result<(), String> {
+    let raw = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let existing = parse_object(&raw)?;
+    let defaults = parse_object(defaults_json)?;
+
+    // Start from the bundled defaults so every shipped key reflects source.
+    let mut merged = defaults.clone();
+    // Then re-add any keys the user introduced locally that aren't part of
+    // the bundle, so custom translations the dev added for testing aren't
+    // wiped on every rebuild.
+    for (key, value) in existing {
+        if !defaults.contains_key(&key) {
+            merged.insert(key, value);
+        }
+    }
+
+    let value = serde_json::Value::Object(merged);
+    let pretty = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
+    std::fs::write(path, pretty).map_err(|e| e.to_string())
 }
 
 fn parse_object(text: &str) -> Result<serde_json::Map<String, serde_json::Value>, String> {

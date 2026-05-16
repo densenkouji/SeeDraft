@@ -8,6 +8,176 @@
 </head>
 
 <body>
+    <!--
+      SVG icon sprite. Each icon is a 24×24 line-style glyph using currentColor,
+      so it inherits the parent's text color. Reference one with:
+        <svg class="icon" aria-hidden="true"><use href="#icon-foo"/></svg>
+      Or via the `data-icon="foo"` attribute on any element bound by data-i18n
+      (the translation helper re-injects the icon after replacing textContent).
+    -->
+    <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+        <defs>
+            <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </symbol>
+            <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+            </symbol>
+            <symbol id="icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+            </symbol>
+            <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 0 1 15.5-6.36L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-15.5 6.36L3 16" />
+                <path d="M3 21v-5h5" />
+            </symbol>
+            <symbol id="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </symbol>
+            <symbol id="icon-film" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="2" width="20" height="20" rx="2.5" ry="2.5" />
+                <path d="M7 2v20" />
+                <path d="M17 2v20" />
+                <path d="M2 12h20" />
+                <path d="M2 7h5" />
+                <path d="M2 17h5" />
+                <path d="M17 17h5" />
+                <path d="M17 7h5" />
+            </symbol>
+            <symbol id="icon-document" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <path d="M8 13h8" />
+                <path d="M8 17h5" />
+            </symbol>
+            <symbol id="icon-check-square" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+            </symbol>
+            <symbol id="icon-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.07.54l3-3a5 5 0 1 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.07-.54l-3 3a5 5 0 1 0 7.07 7.07l1.71-1.71" />
+            </symbol>
+            <symbol id="icon-microphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <path d="M12 19v3" />
+            </symbol>
+            <symbol id="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M2 12h20" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </symbol>
+            <symbol id="icon-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="12" cy="12" r="6" />
+                <circle cx="12" cy="12" r="2" />
+            </symbol>
+            <symbol id="icon-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3v3" />
+                <path d="M12 18v3" />
+                <path d="M3 12h3" />
+                <path d="M18 12h3" />
+                <path d="m5.6 5.6 2.1 2.1" />
+                <path d="m16.3 16.3 2.1 2.1" />
+                <path d="m5.6 18.4 2.1-2.1" />
+                <path d="m16.3 7.7 2.1-2.1" />
+            </symbol>
+            <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="7.5" />
+                <path d="m21 21-4.35-4.35" />
+            </symbol>
+            <symbol id="icon-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z" />
+            </symbol>
+            <symbol id="icon-record" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <circle cx="12" cy="12" r="6" />
+            </symbol>
+            <symbol id="icon-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 7h16" />
+                <path d="M4 12h16" />
+                <path d="M4 17h10" />
+            </symbol>
+            <symbol id="icon-quote" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 21c3 0 5-2 5-5v-4H3v4" />
+                <path d="M14 21c3 0 5-2 5-5v-4h-5v4" />
+                <path d="M3 12V6a2 2 0 0 1 2-2h2" />
+                <path d="M14 12V6a2 2 0 0 1 2-2h2" />
+            </symbol>
+            <symbol id="icon-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 6v6l4 2" />
+            </symbol>
+            <symbol id="icon-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
+            </symbol>
+            <symbol id="icon-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <path d="M12 9v4" />
+                <path d="M12 17h.01" />
+            </symbol>
+            <symbol id="icon-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+            </symbol>
+            <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18" />
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+            </symbol>
+            <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m5 12 5 5L20 7" />
+            </symbol>
+            <symbol id="icon-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4" />
+                <path d="M12 8h.01" />
+            </symbol>
+            <symbol id="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <path d="m7 10 5 5 5-5" />
+                <path d="M12 15V3" />
+            </symbol>
+            <symbol id="icon-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </symbol>
+            <symbol id="icon-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 5v14" />
+                <path d="m19 12-7 7-7-7" />
+            </symbol>
+            <symbol id="icon-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19V5" />
+                <path d="m5 12 7-7 7 7" />
+            </symbol>
+            <symbol id="icon-arrows-vertical" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m7 15 5 5 5-5" />
+                <path d="m7 9 5-5 5 5" />
+            </symbol>
+            <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m9 18 6-6-6-6" />
+            </symbol>
+            <symbol id="icon-microphone-large" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <path d="M12 19v3" />
+                <path d="M8 22h8" />
+            </symbol>
+            <symbol id="icon-circle-filled" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <circle cx="12" cy="12" r="5" />
+            </symbol>
+            <symbol id="icon-circle-outline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <circle cx="12" cy="12" r="5" />
+            </symbol>
+        </defs>
+    </svg>
+
     <main class="app-shell">
         <section class="main-workspace">
             <header class="topbar">
@@ -18,24 +188,31 @@
                     </span>
                     <div class="topbar-divider"></div>
                     <div class="project-selector" role="group" aria-label="Project">
+                        <svg class="icon project-selector-icon" aria-hidden="true"><use href="#icon-folder" /></svg>
                         <select id="projectSelect" class="project-select" aria-label="Project"></select>
                         <button id="newProjectButton" class="icon-button" type="button" title=""
-                            data-i18n-title="project.new">＋</button>
+                            data-i18n-title="project.new" aria-label="New project">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        </button>
                     </div>
                     <div class="topbar-divider"></div>
                     <button id="openLiveButton" class="icon-button topbar-nav" type="button"
-                        data-i18n="button.liveCaption">🎬 ライブ字幕</button>
+                        data-i18n="button.liveCaption" data-icon="film">ライブ字幕</button>
                     <button id="openDraftsButton" class="icon-button topbar-nav" type="button"
-                        data-i18n="button.drafts">📄 ドラフト</button>
+                        data-i18n="button.drafts" data-icon="document">ドラフト</button>
                 </div>
                 <div class="topbar-right">
                     <div id="currentModelBadge" class="model-badge" hidden>
-                        <span class="model-badge-icon">🎙</span>
+                        <span class="model-badge-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-microphone" /></svg>
+                        </span>
                         <span class="model-badge-label" id="currentModelLabel">whisper-tiny</span>
                     </div>
                     <label id="currentThemeBadge" class="model-badge theme-badge"
                         data-i18n-title="settings.themes.selectorTitle" title="文字起こしテーマ">
-                        <span class="model-badge-icon">🎯</span>
+                        <span class="model-badge-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-target" /></svg>
+                        </span>
                         <select id="themeSelector" class="topbar-language-select"
                             data-i18n-title="settings.themes.selectorTitle" title="文字起こしテーマ"
                             aria-label="Transcription theme">
@@ -44,7 +221,9 @@
                     </label>
                     <label id="currentLanguageBadge" class="model-badge language-badge"
                         data-i18n-title="settings.transcription.language" title="認識言語">
-                        <span class="model-badge-icon">🌐</span>
+                        <span class="model-badge-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-globe" /></svg>
+                        </span>
                         <select id="language" class="topbar-language-select"
                             data-i18n-title="settings.transcription.language" title="認識言語"
                             aria-label="Recognition language">
@@ -67,7 +246,9 @@
                         </select>
                     </label>
                     <button id="openSettingsButton" class="icon-button settings-button" type="button"
-                        data-i18n-title="button.settings" title="設定" aria-label="Settings">⚙</button>
+                        data-i18n-title="button.settings" title="設定" aria-label="Settings">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+                    </button>
                 </div>
             </header>
 
@@ -85,11 +266,17 @@
                             <option value="title" data-i18n="history.sort.title">タイトル</option>
                         </select>
                         <button id="notesSortDirection" class="icon-button notes-sort-direction" type="button"
-                            title="降順" aria-label="Sort descending">↓</button>
+                            title="降順" aria-label="Sort descending">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-down" /></svg>
+                        </button>
                         <button id="notesSelectToggle" class="icon-button" type="button"
-                            data-i18n-title="draft.selectMode" title="選択モード" aria-label="Select mode">☑</button>
+                            data-i18n-title="draft.selectMode" title="選択モード" aria-label="Select mode">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-check-square" /></svg>
+                        </button>
                         <button id="refreshHistoryButton" class="icon-button notes-refresh" type="button"
-                            data-i18n-title="history.refresh" title="再読込" aria-label="Refresh">↻</button>
+                            data-i18n-title="history.refresh" title="再読込" aria-label="Refresh">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-refresh" /></svg>
+                        </button>
                     </div>
                     <div id="notesSelectionBar" class="notes-selection-bar" hidden>
                         <span class="notes-selection-count"><span id="notesSelectionCount">0</span> <span
@@ -97,7 +284,7 @@
                         <button id="notesSelectAll" class="text-button" type="button"
                             data-i18n="draft.selectAll">全選択</button>
                         <button id="notesSelectionCompose" class="text-button primary-inline" type="button"
-                            data-i18n="draft.compose">📄 ドラフト化</button>
+                            data-i18n="draft.compose" data-icon="document">ドラフト化</button>
                     </div>
                     <div class="notes-sidebar-list" id="notesGrid"></div>
                 </aside>
@@ -117,9 +304,11 @@
                         </span>
                         <span class="notes-header-meta" id="notesHeaderMeta"></span>
                         <button id="graphLinkModeButton" class="icon-button" type="button"
-                            data-i18n="history.graph.linkMode">🔗 リンク作成</button>
+                            data-i18n="history.graph.linkMode" data-icon="link">リンク作成</button>
                         <button id="refreshGraphButton" class="icon-button" type="button"
-                            data-i18n-title="history.refresh" title="再読込" aria-label="Refresh graph">↻</button>
+                            data-i18n-title="history.refresh" title="再読込" aria-label="Refresh graph">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-refresh" /></svg>
+                        </button>
                     </div>
                     <div id="graphLinkBanner" class="graph-link-banner" hidden>
                         <span id="graphLinkBannerText" data-i18n="history.graph.linkFirst">リンク元のノートを選択</span>
@@ -129,7 +318,9 @@
                     <div class="graph-container">
                         <svg id="graphSvg" class="graph-svg"></svg>
                         <div class="graph-detail" id="graphDetail" hidden>
-                            <button class="graph-detail-close" id="graphDetailClose" type="button">✕</button>
+                            <button class="graph-detail-close" id="graphDetailClose" type="button" aria-label="Close">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg>
+                            </button>
                             <h3 id="graphDetailTitle"></h3>
                             <p class="graph-detail-kind" id="graphDetailKind"></p>
                             <div class="graph-detail-content" id="graphDetailContent"></div>
@@ -144,9 +335,11 @@
                             <span id="captionDirty" class="caption-dirty" hidden data-i18n="caption.unsaved">未保存</span>
                             <div class="caption-action-bar" aria-label="Transcription actions">
                                 <button id="copyMainButton" class="icon-button" type="button"
-                                    data-i18n-title="button.copy" title="コピー" aria-label="Copy">📋</button>
+                                    data-i18n-title="button.copy" title="コピー" aria-label="Copy">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg>
+                                </button>
                                 <button id="createNoteButton" class="text-button primary-inline caption-create-note"
-                                    type="button" data-i18n="button.createNote">＋ ノート作成</button>
+                                    type="button" data-i18n="button.createNote" data-icon="plus">ノート作成</button>
                             </div>
                         </div>
                         <div class="control-bar">
@@ -191,7 +384,9 @@
                             <div class="record-button-wrap">
                                 <div class="record-progress-ring" id="recordProgressRing" aria-hidden="true"></div>
                                 <button id="recordButton" class="record-button" type="button">
-                                    <span class="record-icon" aria-hidden="true">⏺</span>
+                                    <span class="record-icon" aria-hidden="true">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-record" /></svg>
+                                    </span>
                                     <span class="record-label" data-i18n="button.record.start">録音開始</span>
                                     <span class="record-countdown" id="recordCountdown" aria-hidden="true"
                                         hidden></span>
@@ -210,19 +405,27 @@
                 </div>
                 <div id="captionStats" class="caption-stats status-bar-stats">
                     <span class="caption-stat">
-                        <span class="caption-stat-icon">📝</span>
+                        <span class="caption-stat-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-text" /></svg>
+                        </span>
                         <span class="caption-stat-value" id="statChars">0</span>
                     </span>
                     <span class="caption-stat">
-                        <span class="caption-stat-icon">💭</span>
+                        <span class="caption-stat-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-quote" /></svg>
+                        </span>
                         <span class="caption-stat-value" id="statFillers">0</span>
                     </span>
                     <span class="caption-stat" id="statDurationWrap" hidden>
-                        <span class="caption-stat-icon">⏱</span>
+                        <span class="caption-stat-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
+                        </span>
                         <span class="caption-stat-value" id="statDuration">0s</span>
                     </span>
                     <span class="caption-stat" id="statSpeedWrap" hidden>
-                        <span class="caption-stat-icon">⚡</span>
+                        <span class="caption-stat-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-zap" /></svg>
+                        </span>
                         <span class="caption-stat-value" id="statSpeed">0</span>
                     </span>
                 </div>
@@ -230,7 +433,9 @@
 
             <div class="drop-overlay" id="dropOverlay">
                 <div class="drop-prompt">
-                    <div class="drop-icon">🎤</div>
+                    <div class="drop-icon">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-microphone-large" /></svg>
+                    </div>
                     <p data-i18n="drop.title">音声ファイルをドロップ</p>
                     <small data-i18n="drop.formats">mp3 / wav / m4a / webm</small>
                 </div>
@@ -262,7 +467,7 @@
                     <div class="download-diagnostic-head">
                         <strong data-i18n="download.diagnostic.title">ダウンロードに失敗しました</strong>
                         <button id="downloadDiagnosticClose" class="icon-button" type="button"
-                            aria-label="Close">✕</button>
+                            aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
                     </div>
                     <p class="download-diagnostic-alias" id="downloadDiagnosticAlias"></p>
                     <pre class="download-diagnostic-error" id="downloadDiagnosticError"></pre>
@@ -276,12 +481,14 @@
 
             <div id="errorBanner" class="error-banner" hidden>
                 <div class="error-banner-content">
-                    <span class="error-banner-icon">⚠</span>
+                    <span class="error-banner-icon">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert" /></svg>
+                    </span>
                     <div class="error-banner-body">
                         <strong data-i18n="error.title">エラー</strong>
                         <p id="errorBannerMessage"></p>
                     </div>
-                    <button id="errorBannerClose" type="button" class="error-banner-close" aria-label="Close">✕</button>
+                    <button id="errorBannerClose" type="button" class="error-banner-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
                 </div>
             </div>
 
@@ -299,7 +506,7 @@
                         <button id="requirementsModelsButton" type="button" class="text-button"
                             data-i18n="requirements.openModels">モデル設定</button>
                         <button id="requirementsBannerClose" type="button" class="icon-button"
-                            data-i18n-title="requirements.dismiss" title="閉じる" aria-label="Close">✕</button>
+                            data-i18n-title="requirements.dismiss" title="閉じる" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
                     </div>
                 </div>
             </div>
@@ -319,7 +526,7 @@
                     <div class="settings-header-actions">
                         <button id="resetSettingsButton" class="text-button" type="button"
                             data-i18n="settings.reset">初期設定に戻す</button>
-                        <button id="closeSettingsButton" class="icon-button" type="button">✕</button>
+                        <button id="closeSettingsButton" class="icon-button" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
                     </div>
                 </div>
 
@@ -347,7 +554,9 @@
                         <label class="field-label" data-i18n="settings.transcription.model">Whisperモデル</label>
                         <div class="current-model-card" id="currentModelCard">
                             <div class="current-model-card-head">
-                                <span class="current-model-icon" id="currentModelCardIcon">🎙</span>
+                                <span class="current-model-icon" id="currentModelCardIcon">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-microphone" /></svg>
+                                </span>
                                 <div class="current-model-info">
                                     <code id="currentModelCardAlias" class="current-model-alias">—</code>
                                     <p id="currentModelCardDesc" class="current-model-desc"></p>
@@ -376,7 +585,7 @@
                             </select>
                             <button id="microphoneRefreshButton" class="icon-button" type="button"
                                 data-i18n-title="settings.models.refresh" title="再読込"
-                                aria-label="Refresh microphones">↻</button>
+                                aria-label="Refresh microphones"><svg class="icon" aria-hidden="true"><use href="#icon-refresh" /></svg></button>
                         </div>
                         <div class="mic-monitor" id="microphoneMonitor">
                             <div class="mic-monitor-head">
@@ -410,9 +619,9 @@
                                 <h3 class="section-title" data-i18n="settings.themes.title">テーマ</h3>
                                 <div class="postprocess-section-header-actions">
                                     <button id="themeImportSamplesButton" class="secondary-button" type="button"
-                                        data-i18n="settings.themes.importSamples">サンプルを追加</button>
+                                        data-i18n="settings.themes.importSamples" data-icon="sparkles">サンプルを追加</button>
                                     <button id="themeAddButton" class="secondary-button" type="button"
-                                        data-i18n="settings.themes.add">＋ 新規</button>
+                                        data-i18n="settings.themes.add" data-icon="plus">新規</button>
                                 </div>
                             </div>
                             <p class="field-hint" data-i18n="settings.themes.hint">
@@ -435,8 +644,7 @@
 
                         <div class="postprocess-section">
                             <h3 class="section-title" data-i18n="settings.complete.title">補完設定</h3>
-                            <p class="field-hint" data-i18n="settings.complete.hint">ノート編集画面の「✨
-                                補完」ボタンで本文の続きを生成します。リンク先ノートのコンテキストが有効な場合は関連ノートを踏まえた続きが生成されます。</p>
+                            <p class="field-hint" data-i18n="settings.complete.hint">ノート編集画面の「補完」ボタンで本文の続きを生成します。リンク先ノートのコンテキストが有効な場合は関連ノートを踏まえた続きが生成されます。</p>
                             <label class="field-label" for="completeModel"
                                 data-i18n="settings.complete.model">使用するモデル</label>
                             <select id="completeModel" class="post-model-select"></select>
@@ -516,9 +724,9 @@
                                 <h3 class="section-title" data-i18n="settings.custom.title">カスタム後処理</h3>
                                 <div class="postprocess-section-header-actions">
                                     <button id="customStepPresetButton" class="secondary-button" type="button"
-                                        data-i18n="settings.custom.preset.add">＋ プリセット</button>
+                                        data-i18n="settings.custom.preset.add" data-icon="plus">プリセット</button>
                                     <button id="customStepAddButton" class="secondary-button" type="button"
-                                        data-i18n="settings.custom.add">＋ 追加</button>
+                                        data-i18n="settings.custom.add" data-icon="plus">追加</button>
                                 </div>
                             </div>
                             <p class="field-hint" data-i18n="settings.custom.hint">
@@ -533,7 +741,7 @@
                                 <div class="note-editor-header">
                                     <h3 data-i18n="settings.custom.preset.pickTitle">プリセットを選択</h3>
                                     <button id="customPresetClose" class="icon-button" type="button"
-                                        aria-label="Close">✕</button>
+                                        aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
                                 </div>
                                 <p class="field-hint" data-i18n="settings.custom.preset.pickHint">
                                     選んだプリセットをカスタム後処理に追加します。既に同名のステップがある場合は内容を最新版に更新します。</p>
@@ -548,7 +756,7 @@
                         <div class="note-editor-card">
                             <div class="note-editor-header">
                                 <h3 data-i18n="settings.custom.editorTitle">カスタムステップ</h3>
-                                <button id="customStepEditorClose" class="icon-button" type="button">✕</button>
+                                <button id="customStepEditorClose" class="icon-button" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
                             </div>
                             <label class="field-label" data-i18n="settings.custom.name">名前</label>
                             <input id="customStepName" type="text"
@@ -606,7 +814,7 @@
                                     data-i18n="settings.models.downloadedCount">ダウンロード済み</span>
                                 <span id="modelsDownloadedCount" class="models-summary-value">0</span>
                                 <button id="modelsRefreshButton" class="icon-button" type="button"
-                                    data-i18n-title="settings.models.refresh" title="再読込">↻</button>
+                                    data-i18n-title="settings.models.refresh" title="再読込"><svg class="icon" aria-hidden="true"><use href="#icon-refresh" /></svg></button>
                             </div>
                             <div class="models-summary-row">
                                 <span class="models-summary-label" data-i18n="settings.models.runtime">実行環境</span>
@@ -616,7 +824,9 @@
 
                         <div class="models-section">
                             <div class="models-section-header">
-                                <span class="models-section-icon">🎙</span>
+                                <span class="models-section-icon">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-microphone" /></svg>
+                                </span>
                                 <div>
                                     <h3 data-i18n="settings.models.speechGroup">音声認識 (Speech-to-Text)</h3>
                                     <p class="models-section-desc" data-i18n="settings.models.speechDesc">
@@ -628,7 +838,9 @@
 
                         <div class="models-section">
                             <div class="models-section-header">
-                                <span class="models-section-icon">💬</span>
+                                <span class="models-section-icon">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-chat" /></svg>
+                                </span>
                                 <div>
                                     <h3 data-i18n="settings.models.chatGroup">テキスト処理 (LLM)</h3>
                                     <p class="models-section-desc" data-i18n="settings.models.chatDesc">
@@ -717,7 +929,7 @@
             <div class="note-editor-card">
                 <div class="note-editor-header">
                     <h3 data-i18n="note.edit">ノート編集</h3>
-                    <button id="noteEditorClose" class="icon-button" type="button">✕</button>
+                    <button id="noteEditorClose" class="icon-button" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
                 </div>
                 <label class="field-label" data-i18n="note.title">タイトル</label>
                 <input id="noteEditorTitle" type="text" />
@@ -727,7 +939,7 @@
                 <div class="note-parent-row">
                     <select id="noteEditorParent" class="note-parent-select"></select>
                     <button id="noteEditorClearParent" class="icon-button" type="button"
-                        data-i18n-title="note.clearParent" title="親をクリア" aria-label="Clear parent">✕</button>
+                        data-i18n-title="note.clearParent" title="親をクリア" aria-label="Clear parent"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
                 </div>
                 <label class="field-label" data-i18n="note.tags">タグ（カンマ区切り）</label>
                 <div class="tag-input-wrap">
@@ -740,10 +952,8 @@
                 <div class="note-editor-actions">
                     <button id="noteEditorDelete" class="danger-button" type="button"
                         data-i18n="note.delete">削除</button>
-                    <button id="noteEditorComplete" class="secondary-button" type="button" data-i18n="note.complete">✨
-                        補完</button>
-                    <button id="noteEditorAnalyze" class="secondary-button" type="button" data-i18n="note.analyze">🔍
-                        抽出</button>
+                    <button id="noteEditorComplete" class="secondary-button" type="button" data-i18n="note.complete" data-icon="sparkles">補完</button>
+                    <button id="noteEditorAnalyze" class="secondary-button" type="button" data-i18n="note.analyze" data-icon="search">抽出</button>
                     <button id="noteEditorSave" class="primary-button" type="button" data-i18n="note.save">保存</button>
                 </div>
             </div>
@@ -756,7 +966,7 @@
             <div class="note-editor-card">
                 <div class="note-editor-header">
                     <h3 data-i18n="draft.composeTitle">ノートからドラフトを作成</h3>
-                    <button id="composeDraftClose" class="icon-button" type="button">✕</button>
+                    <button id="composeDraftClose" class="icon-button" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
                 </div>
                 <p class="field-hint" id="composeDraftSummary"></p>
 
@@ -789,8 +999,8 @@
         <!-- ドラフト一覧 + 編集 オーバーレイ -->
         <div class="fullscreen-overlay" id="draftsOverlay" hidden>
             <div class="fullscreen-header">
-                <h2 data-i18n="draft.title.plural">📄 ドラフト</h2>
-                <button id="closeDraftsButton" class="icon-button" type="button">✕</button>
+                <h2 data-i18n="draft.title.plural" data-icon="document">ドラフト</h2>
+                <button id="closeDraftsButton" class="icon-button" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
             </div>
             <div class="fullscreen-body drafts-workspace">
                 <aside class="drafts-sidebar">
@@ -803,9 +1013,13 @@
                             data-i18n-placeholder="draft.title" placeholder="タイトル" disabled />
                         <div class="drafts-editor-actions">
                             <button id="draftCopyButton" class="icon-button" type="button" data-i18n-title="button.copy"
-                                title="コピー" disabled>📋</button>
+                                title="コピー" aria-label="Copy" disabled>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg>
+                            </button>
                             <button id="draftExportButton" class="icon-button" type="button"
-                                data-i18n-title="draft.export" title="エクスポート" disabled>💾</button>
+                                data-i18n-title="draft.export" title="エクスポート" aria-label="Export" disabled>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-document" /></svg>
+                            </button>
                             <button id="draftSaveButton" class="text-button primary-inline" type="button"
                                 data-i18n="draft.save" disabled>保存</button>
                             <button id="draftDeleteButton" class="danger-button" type="button" data-i18n="draft.delete"
@@ -827,12 +1041,12 @@
 
         <div class="fullscreen-overlay" id="liveOverlay" hidden>
             <div class="fullscreen-header">
-                <h2 data-i18n="live.title">🎬 ライブ字幕</h2>
+                <h2 data-i18n="live.title" data-icon="film">ライブ字幕</h2>
                 <div class="live-header-meta" id="liveHeaderMeta">
                     <span class="live-timer" id="liveTimer">00:00</span>
                     <span id="liveRecBadge" class="live-rec-badge" hidden>REC</span>
                 </div>
-                <button id="closeLiveButton" class="icon-button" type="button">✕</button>
+                <button id="closeLiveButton" class="icon-button" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
             </div>
             <div class="fullscreen-body live-workspace">
                 <aside class="live-sidebar">
@@ -912,7 +1126,9 @@
                         <div class="record-button-wrap live-record-button-wrap">
                             <button id="liveStartButton" class="record-button live-action-button" type="button"
                                 data-recording="false">
-                                <span class="record-icon" aria-hidden="true">⏺</span>
+                                <span class="record-icon" aria-hidden="true">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-record" /></svg>
+                                </span>
                                 <span id="liveStartLabel" class="record-label" data-i18n="live.start">開始</span>
                             </button>
                         </div>
@@ -926,7 +1142,7 @@
             <div class="note-editor-card">
                 <div class="note-editor-header">
                     <h3 data-i18n="live.saveSession">セッションを保存</h3>
-                    <button id="liveSaveClose" class="icon-button" type="button">✕</button>
+                    <button id="liveSaveClose" class="icon-button" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
                 </div>
                 <label class="field-label" data-i18n="live.sessionTitle">タイトル</label>
                 <input id="liveSaveTitle" type="text" data-i18n-placeholder="live.sessionTitlePlaceholder"
@@ -945,7 +1161,7 @@
             <div class="note-editor-card">
                 <div class="note-editor-header">
                     <h3 data-i18n="project.new">新しいプロジェクト</h3>
-                    <button id="projectEditorClose" class="icon-button" type="button">✕</button>
+                    <button id="projectEditorClose" class="icon-button" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
                 </div>
                 <label class="field-label" data-i18n="project.name">プロジェクト名</label>
                 <input id="projectEditorName" type="text" />
@@ -965,7 +1181,7 @@
             <div class="note-editor-card">
                 <div class="note-editor-header">
                     <h3 id="themeEditorTitle" data-i18n="settings.themes.editorTitleNew">新しいテーマ</h3>
-                    <button id="themeEditorClose" class="icon-button" type="button">✕</button>
+                    <button id="themeEditorClose" class="icon-button" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close" /></svg></button>
                 </div>
                 <label class="field-label" data-i18n="settings.themes.name">名前</label>
                 <input id="themeEditorName" type="text"
@@ -1050,7 +1266,7 @@
                 "language.name.th": "タイ語",
                 "app.title": "SeeDraft",
                 "app.heading": "Project",
-                "button.settings": "⚙ 設定",
+                "button.settings": "設定",
                 "button.copy": "コピー",
                 "button.clear": "クリア",
                 "button.choose": "選択",
@@ -1114,7 +1330,7 @@
                 "caption.label": "文字起こし結果",
                 "caption.placeholder": "ここに文字起こし結果が表示されます",
                 "caption.unsaved": "未保存",
-                "button.createNote": "＋ ノート作成",
+                "button.createNote": "ノート作成",
                 "quick.autoSave": "ノート追加",
                 "quick.postprocessGroup": "後処理",
                 "quick.autoRefine": "整形",
@@ -1130,7 +1346,7 @@
                 "settings.linkedContext.hint": "手動で張ったリンク先ノートの抜粋を、整形・翻訳・抽出・カスタム後処理のシステムプロンプトに追加します。関連ノートを踏まえた結果が得られます。",
                 "settings.linkedContext.enabled": "有効にする",
                 "settings.complete.title": "補完設定",
-                "settings.complete.hint": "ノート編集画面の「✨ 補完」ボタンで本文の続きを生成します。リンク先ノートのコンテキストが有効な場合は関連ノートを踏まえた続きが生成されます。",
+                "settings.complete.hint": "ノート編集画面の「補完」ボタンで本文の続きを生成します。リンク先ノートのコンテキストが有効な場合は関連ノートを踏まえた続きが生成されます。",
                 "settings.complete.model": "使用するモデル",
                 "settings.draft.title": "ドラフト設定",
                 "settings.draft.hint": "ノート選択から「LLM再構成」を実行するときに使用するモデルとプロンプトです。",
@@ -1189,9 +1405,9 @@
                 "settings.tab.shortcuts": "ショートカット",
                 "settings.themes.title": "テーマ",
                 "settings.themes.hint": "テーマには会話の文脈、専門用語、整形の追加指示を保存できます。メイン画面からテーマを選ぶと、文字起こし精度の補正と後処理の挙動を一括で切り替えられます。",
-                "settings.themes.add": "＋ 新規",
+                "settings.themes.add": "新規",
                 "settings.themes.edit": "編集",
-                "settings.themes.empty": "テーマがまだありません。「＋ 新規」から追加してください。",
+                "settings.themes.empty": "テーマがまだありません。「新規」から追加してください。",
                 "settings.themes.empty.fields": "（フィールド未設定）",
                 "settings.themes.hasPrompt": "文脈プロンプト",
                 "settings.themes.hasTerms": "専門用語",
@@ -1351,8 +1567,8 @@
                 "settings.autosaved": "設定を保存しました",
                 "settings.custom.title": "カスタム後処理",
                 "settings.custom.hint": "LLMへの指示を組み合わせて、上から順に実行されます。並び順はそのまま実行順です。",
-                "settings.custom.add": "＋ 追加",
-                "settings.custom.preset.add": "＋ プリセット",
+                "settings.custom.add": "追加",
+                "settings.custom.preset.add": "プリセット",
                 "settings.custom.preset.pickTitle": "プリセットを選択",
                 "settings.custom.preset.pickHint": "選んだプリセットをカスタム後処理に追加します。既に同じステップがある場合は内容を最新版に更新します。",
                 "settings.custom.preset.addOne": "追加",
@@ -1414,6 +1630,9 @@
                 "model.status.downloaded": "ダウンロード済み",
                 "model.status.notDownloaded": "未ダウンロード",
                 "model.status.downloading": "ダウンロード中",
+                "model.optionFlag.notDownloaded": "未DL",
+                "model.optionFlag.incompatible": "非対応",
+                "model.variant.cached": "DL済",
                 "model.action.select": "選択",
                 "model.action.download": "ダウンロード",
                 "model.action.delete": "削除",
@@ -1436,15 +1655,15 @@
                 "project.delete": "削除",
                 "project.deleteConfirm": "プロジェクト「{name}」とそのノートを全て削除しますか？",
                 "project.namePlaceholder": "例: 会議メモ",
-                "button.history": "📝 ノート",
-                "button.liveCaption": "🎬 ライブ字幕",
-                "button.drafts": "📄 ドラフト",
-                "draft.title.plural": "📄 ドラフト",
+                "button.history": "ノート",
+                "button.liveCaption": "ライブ字幕",
+                "button.drafts": "ドラフト",
+                "draft.title.plural": "ドラフト",
                 "draft.list": "ドラフト一覧",
                 "draft.selectMode": "選択モード",
                 "draft.selectedCount": "件選択中",
                 "draft.selectAll": "全選択",
-                "draft.compose": "📄 ドラフト化",
+                "draft.compose": "ドラフト化",
                 "draft.composeTitle": "ノートからドラフトを作成",
                 "draft.title": "タイトル",
                 "draft.titlePlaceholder": "例: 週次まとめ",
@@ -1467,7 +1686,7 @@
                 "draft.composeFailed": "ドラフトの作成に失敗しました",
                 "draft.selectAtLeastOne": "1件以上のノートを選択してください",
                 "draft.summary": "{count}件のノートから合成",
-                "live.title": "🎬 ライブ字幕",
+                "live.title": "ライブ字幕",
                 "live.savedSessions": "保存済みセッション",
                 "live.inputSource": "入力",
                 "live.sourceLanguage": "原言語",
@@ -1533,10 +1752,10 @@
                 "note.clearParent": "親をクリア",
                 "note.parentSetFailed": "親ノートを設定できませんでした",
                 "history.graph.parent": "親子",
-                "note.analyze": "🔍 抽出",
+                "note.analyze": "抽出",
                 "note.analyzing": "抽出中...",
                 "note.analysisFailed": "抽出に失敗しました",
-                "note.complete": "✨ 補完",
+                "note.complete": "補完",
                 "note.completing": "補完中...",
                 "note.completeFailed": "補完に失敗しました",
                 "note.completeEmpty": "追加する内容を生成できませんでした",
@@ -1594,7 +1813,7 @@
                 "language.name.th": "Thai",
                 "app.title": "SeeDraft",
                 "app.heading": "Project",
-                "button.settings": "⚙ Settings",
+                "button.settings": "Settings",
                 "button.copy": "Copy",
                 "button.clear": "Clear",
                 "button.choose": "Choose",
@@ -1674,7 +1893,7 @@
                 "settings.linkedContext.hint": "Inject excerpts from manually-linked notes into the system prompt for refinement, translation, extraction and custom post-processing, so the LLM can condition on related notes.",
                 "settings.linkedContext.enabled": "Enabled",
                 "settings.complete.title": "Completion",
-                "settings.complete.hint": "The \"✨ Complete\" button in the note editor extends the body with a continuation. When linked-note context is enabled, related notes are used as background.",
+                "settings.complete.hint": "The \"Complete\" button in the note editor extends the body with a continuation. When linked-note context is enabled, related notes are used as background.",
                 "settings.complete.model": "Model to use",
                 "settings.draft.title": "Draft",
                 "settings.draft.hint": "Model and prompt used when note selection runs LLM reconstruction.",
@@ -1895,8 +2114,8 @@
                 "settings.autosaved": "Settings saved",
                 "settings.custom.title": "Custom post-processing",
                 "settings.custom.hint": "Combine LLM instructions — steps run top-to-bottom in the listed order.",
-                "settings.custom.add": "＋ Add",
-                "settings.custom.preset.add": "＋ Preset",
+                "settings.custom.add": "Add",
+                "settings.custom.preset.add": "Preset",
                 "settings.custom.preset.pickTitle": "Pick a preset",
                 "settings.custom.preset.pickHint": "Adds the chosen preset to your custom post-processing list. If a step with the same id already exists, its content is refreshed to the latest preset definition.",
                 "settings.custom.preset.addOne": "Add",
@@ -1958,6 +2177,9 @@
                 "model.status.downloaded": "Downloaded",
                 "model.status.notDownloaded": "Not downloaded",
                 "model.status.downloading": "Downloading",
+                "model.optionFlag.notDownloaded": "not downloaded",
+                "model.optionFlag.incompatible": "incompatible",
+                "model.variant.cached": "cached",
                 "model.action.select": "Select",
                 "model.action.download": "Download",
                 "model.action.delete": "Delete",
@@ -1980,15 +2202,15 @@
                 "project.delete": "Delete",
                 "project.deleteConfirm": "Delete project \"{name}\" and all its notes?",
                 "project.namePlaceholder": "e.g. Meeting notes",
-                "button.history": "📝 Notes",
-                "button.liveCaption": "🎬 Live",
-                "button.drafts": "📄 Drafts",
-                "draft.title.plural": "📄 Drafts",
+                "button.history": "Notes",
+                "button.liveCaption": "Live",
+                "button.drafts": "Drafts",
+                "draft.title.plural": "Drafts",
                 "draft.list": "Drafts",
                 "draft.selectMode": "Select mode",
                 "draft.selectedCount": "selected",
                 "draft.selectAll": "Select all",
-                "draft.compose": "📄 Compose draft",
+                "draft.compose": "Compose draft",
                 "draft.composeTitle": "Compose draft from notes",
                 "draft.title": "Title",
                 "draft.titlePlaceholder": "e.g. Weekly digest",
@@ -2011,7 +2233,7 @@
                 "draft.composeFailed": "Failed to compose draft",
                 "draft.selectAtLeastOne": "Select at least one note",
                 "draft.summary": "Composed from {count} notes",
-                "live.title": "🎬 Live Caption",
+                "live.title": "Live Caption",
                 "live.savedSessions": "Saved sessions",
                 "live.inputSource": "Input",
                 "live.sourceLanguage": "Source",
@@ -2077,10 +2299,10 @@
                 "note.clearParent": "Clear parent",
                 "note.parentSetFailed": "Could not set parent note",
                 "history.graph.parent": "Parent",
-                "note.analyze": "🔍 Extract",
+                "note.analyze": "Extract",
                 "note.analyzing": "Extracting...",
                 "note.analysisFailed": "Extraction failed",
-                "note.complete": "✨ Complete",
+                "note.complete": "Complete",
                 "note.completing": "Completing...",
                 "note.completeFailed": "Completion failed",
                 "note.completeEmpty": "Nothing was added",
@@ -2177,6 +2399,19 @@
             });
         });
 
+        // Build an inline SVG `<use>` reference for an icon symbol id.
+        // `name` is the symbol id without the "icon-" prefix.
+        const buildIconSvg = (name) => {
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("class", "icon");
+            svg.setAttribute("aria-hidden", "true");
+            svg.setAttribute("focusable", "false");
+            const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+            use.setAttribute("href", `#icon-${name}`);
+            svg.appendChild(use);
+            return svg;
+        };
+
         const applyTranslations = () => {
             document.documentElement.lang = currentLocale;
             document.querySelectorAll("[data-i18n]").forEach((el) => {
@@ -2184,8 +2419,14 @@
                 const translation = t(key);
                 if (el.tagName === "TITLE") {
                     document.title = translation;
-                } else {
-                    el.textContent = translation;
+                    return;
+                }
+                el.textContent = translation;
+                // `data-icon="name"` re-injects the SVG icon that textContent
+                // wiped out, so localized labels keep their leading icon.
+                const iconName = el.dataset.icon;
+                if (iconName) {
+                    el.prepend(buildIconSvg(iconName));
                 }
             });
             document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
@@ -3039,7 +3280,7 @@ Input notes:
 
         // Lightweight toast popup (top-right). Auto-dismisses.
         const toastContainer = document.getElementById("toastContainer");
-        const TOAST_ICONS = { success: "✓", info: "ℹ", warning: "!" };
+        const TOAST_ICON_NAMES = { success: "check", info: "info", warning: "alert" };
         const showToast = (message, variant = "success", duration = 2600) => {
             if (!message || !toastContainer) return;
             const toast = document.createElement("div");
@@ -3048,7 +3289,7 @@ Input notes:
 
             const icon = document.createElement("span");
             icon.className = "toast-icon";
-            icon.textContent = TOAST_ICONS[variant] || "•";
+            icon.appendChild(buildIconSvg(TOAST_ICON_NAMES[variant] || "info"));
 
             const body = document.createElement("span");
             body.className = "toast-message";
@@ -3182,27 +3423,27 @@ Input notes:
             currentModelCardAlias.textContent = alias;
             currentModelCardDesc.textContent = describeModel(alias);
 
-            let iconChar;
+            let iconName;
             let statusKey;
             let variant;
             if (isDownloading) {
-                iconChar = "⟳";
+                iconName = "refresh";
                 statusKey = "model.status.downloading";
                 variant = "downloading";
             } else if (state?.active) {
-                iconChar = "●";
+                iconName = "circle-filled";
                 statusKey = "model.status.active";
                 variant = "active";
             } else if (state?.downloaded) {
-                iconChar = "✓";
+                iconName = "check";
                 statusKey = "model.status.downloaded";
                 variant = "cached";
             } else {
-                iconChar = "↓";
+                iconName = "download";
                 statusKey = "model.status.notDownloaded";
                 variant = "missing";
             }
-            currentModelCardIcon.textContent = iconChar;
+            currentModelCardIcon.replaceChildren(buildIconSvg(iconName));
             currentModelCardIcon.classList.toggle("is-spinning", isDownloading);
             currentModelCardStatus.textContent = t(statusKey);
             currentModelCardStatus.dataset.variant = variant;
@@ -3407,24 +3648,24 @@ Input notes:
 
             const icon = document.createElement("span");
             icon.className = "model-row-icon";
-            let iconChar = "↓";
+            let iconName = "download";
             let statusText = t("settings.models.notCached");
             let statusVariant = "missing";
             if (activeDownloadAlias === model.alias) {
-                iconChar = "⟳";
+                iconName = "refresh";
                 statusText = t("settings.models.downloading");
                 statusVariant = "downloading";
                 icon.classList.add("is-spinning");
             } else if (inUse) {
-                iconChar = "●";
+                iconName = "circle-filled";
                 statusText = t("settings.models.inUse");
                 statusVariant = "active";
             } else if (model.downloaded) {
-                iconChar = "✓";
+                iconName = "check";
                 statusText = t("settings.models.cached");
                 statusVariant = "cached";
             }
-            icon.textContent = iconChar;
+            icon.appendChild(buildIconSvg(iconName));
 
             const body = document.createElement("div");
             body.className = "model-row-body";
@@ -3614,7 +3855,7 @@ Input notes:
                 deleteButton.className = "icon-button model-row-delete";
                 deleteButton.title = t("model.tooltip.delete");
                 deleteButton.setAttribute("aria-label", t("model.action.delete"));
-                deleteButton.textContent = "🗑";
+                deleteButton.replaceChildren(buildIconSvg("trash"));
                 deleteButton.addEventListener("click", async () => {
                     if (!window.confirm(t("model.delete.confirm", { alias: model.alias }))) return;
                     try {
@@ -3808,8 +4049,8 @@ Input notes:
                 // Show a visual hint if the model is not yet
                 // downloaded or if it isn't compatible with this host.
                 const suffix = [];
-                if (!m.downloaded) suffix.push("↓");
-                if (m.compatible === false) suffix.push("⚠");
+                if (!m.downloaded) suffix.push(t("model.optionFlag.notDownloaded"));
+                if (m.compatible === false) suffix.push(t("model.optionFlag.incompatible"));
                 opt.textContent = suffix.length ? `${m.alias} · ${suffix.join(" ")}` : m.alias;
                 if (m.compatible === false) {
                     opt.dataset.incompatible = "true";
@@ -4020,7 +4261,7 @@ Input notes:
                     const parts = [v.device_type];
                     if (v.execution_provider) parts.push(v.execution_provider);
                     if (v.file_size_mb != null) parts.push(`${v.file_size_mb} MB`);
-                    if (v.cached) parts.push("✓");
+                    if (v.cached) parts.push(t("model.variant.cached"));
                     meta.textContent = parts.join(" · ");
                     meta.className = "download-diagnostic-variant-meta";
                     left.append(id, document.createElement("br"), meta);
@@ -4934,13 +5175,13 @@ Input notes:
             const manual = notesSortState.field === "manual";
             notesSortDirection.disabled = manual;
             if (manual) {
-                notesSortDirection.textContent = "↕";
+                notesSortDirection.replaceChildren(buildIconSvg("arrows-vertical"));
                 notesSortDirection.title = t("history.sort.manual");
                 notesSortDirection.setAttribute("aria-label", notesSortDirection.title);
                 return;
             }
             const ascending = notesSortState.direction === "asc";
-            notesSortDirection.textContent = ascending ? "↑" : "↓";
+            notesSortDirection.replaceChildren(buildIconSvg(ascending ? "arrow-up" : "arrow-down"));
             notesSortDirection.dataset.direction = notesSortState.direction;
             notesSortDirection.title = t(ascending ? "history.sort.asc" : "history.sort.desc");
             notesSortDirection.setAttribute("aria-label", notesSortDirection.title);
@@ -5408,7 +5649,8 @@ Input notes:
                 if (renderAsTree && childCount > 0) {
                     const badge = document.createElement("span");
                     badge.className = "note-card-child-badge";
-                    badge.textContent = `▸ ${childCount}`;
+                    badge.appendChild(buildIconSvg("chevron-right"));
+                    badge.append(` ${childCount}`);
                     badge.title = `${childCount} note(s)`;
                     title.append(" ");
                     title.append(badge);
@@ -5464,7 +5706,7 @@ Input notes:
                 const editButton = document.createElement("button");
                 editButton.type = "button";
                 editButton.className = "note-card-edit";
-                editButton.textContent = "✎";
+                editButton.replaceChildren(buildIconSvg("edit"));
                 editButton.title = t("note.edit");
                 editButton.addEventListener("click", (event) => {
                     event.stopPropagation();
@@ -6658,8 +6900,8 @@ Input notes:
                 opt.value = alias;
                 const model = chatModels.find(item => item.alias === alias);
                 const suffix = [];
-                if (model && !model.downloaded) suffix.push("↓");
-                if (model?.compatible === false) suffix.push("!");
+                if (model && !model.downloaded) suffix.push(t("model.optionFlag.notDownloaded"));
+                if (model?.compatible === false) suffix.push(t("model.optionFlag.incompatible"));
                 opt.textContent = suffix.length ? `${alias} · ${suffix.join(" ")}` : alias;
                 liveTranslateModel.append(opt);
             });
@@ -7151,7 +7393,7 @@ Input notes:
                 const deleteButton = document.createElement("button");
                 deleteButton.type = "button";
                 deleteButton.className = "text-button";
-                deleteButton.textContent = "🗑";
+                deleteButton.replaceChildren(buildIconSvg("trash"));
                 deleteButton.addEventListener("click", async (event) => {
                     event.stopPropagation();
                     if (!window.confirm(t("live.deleteConfirm"))) return;
@@ -9338,7 +9580,8 @@ Input notes:
                 if (!combo) return false;
                 const validGlobal = action.hold ? isHoldShortcutCombo(combo) : isGlobalShortcutCombo(combo);
                 if (action.global && !validGlobal) {
-                    input.value = combo + "  ⚠";
+                    input.value = combo;
+                    input.dataset.conflict = "true";
                     input.title = t("settings.shortcuts.globalUnsupported");
                     return false;
                 }
@@ -9346,10 +9589,12 @@ Input notes:
                     a.id !== action.id && (shortcutBindings[a.id] || "") === combo
                 );
                 if (clash) {
-                    input.value = combo + "  ⚠";
+                    input.value = combo;
+                    input.dataset.conflict = "true";
                     input.title = t("settings.shortcuts.clash", { label: t(clash.labelKey) });
                     return false;
                 }
+                delete input.dataset.conflict;
                 shortcutBindings[action.id] = combo;
                 input.value = combo;
                 input.title = t("settings.shortcuts.recordTooltip");
@@ -10610,7 +10855,7 @@ Input notes:
                 const upButton = document.createElement("button");
                 upButton.type = "button";
                 upButton.className = "icon-button";
-                upButton.textContent = "↑";
+                upButton.appendChild(buildIconSvg("arrow-up"));
                 upButton.title = t("settings.custom.moveUp");
                 upButton.disabled = index === 0;
                 upButton.addEventListener("click", () => moveCustomStep(index, index - 1));
@@ -10619,7 +10864,7 @@ Input notes:
                 const downButton = document.createElement("button");
                 downButton.type = "button";
                 downButton.className = "icon-button";
-                downButton.textContent = "↓";
+                downButton.appendChild(buildIconSvg("arrow-down"));
                 downButton.title = t("settings.custom.moveDown");
                 downButton.disabled = index === customSteps.length - 1;
                 downButton.addEventListener("click", () => moveCustomStep(index, index + 1));
@@ -10635,7 +10880,7 @@ Input notes:
                 const editButton = document.createElement("button");
                 editButton.type = "button";
                 editButton.className = "icon-button";
-                editButton.textContent = "✎";
+                editButton.replaceChildren(buildIconSvg("edit"));
                 editButton.title = t("settings.custom.edit");
                 editButton.addEventListener("click", () => openCustomStepEditor(step));
                 actions.append(editButton);
@@ -10643,7 +10888,7 @@ Input notes:
                 const deleteButton = document.createElement("button");
                 deleteButton.type = "button";
                 deleteButton.className = "icon-button";
-                deleteButton.textContent = "🗑";
+                deleteButton.replaceChildren(buildIconSvg("trash"));
                 deleteButton.title = t("settings.custom.delete");
                 deleteButton.addEventListener("click", () => {
                     const msg = t("settings.custom.deleteConfirm", { name: step.name || "" });
@@ -11359,10 +11604,11 @@ Input notes:
         background: var(--bg-surface-2);
     }
 
-    .project-selector::before {
-        content: "📁";
-        font-size: 0.9rem;
+    .project-selector-icon {
+        width: 0.95em;
+        height: 0.95em;
         opacity: 0.7;
+        flex-shrink: 0;
     }
 
     .project-select {
@@ -13812,8 +14058,11 @@ Input notes:
     }
 
     .models-ep-chip[data-registered="true"]::before {
-        content: "●";
-        font-size: 0.65rem;
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
     }
 
     .models-ep-chip[data-registered="false"] {
@@ -13822,8 +14071,12 @@ Input notes:
     }
 
     .models-ep-chip[data-registered="false"]::before {
-        content: "○";
-        font-size: 0.65rem;
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        border: 1px solid currentColor;
+        box-sizing: border-box;
     }
 
     .model-row-desc {
@@ -14049,6 +14302,65 @@ Input notes:
         font-weight: 600;
         cursor: pointer;
         transition: all 0.15s ease;
+    }
+
+    /* Inline SVG icon defaults. `currentColor` lets buttons recolor the icon
+       to match their text (primary green, danger red, muted gray, etc.).
+       Icons inside text-bearing buttons sit slightly above the baseline. */
+    .icon {
+        width: 1em;
+        height: 1em;
+        display: inline-block;
+        vertical-align: -0.18em;
+        fill: none;
+        stroke: currentColor;
+        flex-shrink: 0;
+    }
+
+    /* When an icon sits next to a label in a non-flex container, fall back to
+       a margin. Buttons themselves are flexbox below (see icon-button etc.),
+       so they use `gap` instead — don't double-space them. */
+    label .icon,
+    .field-label .icon {
+        margin-right: 0.4em;
+    }
+
+    /* Standalone icon-only buttons: center the SVG and nudge size up so it
+       still reads at a glance even though there's no text label next to it.
+       Buttons that have BOTH an icon and a text label keep the inline-flex
+       layout so the icon → label gap behaves naturally. */
+    .icon-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+
+    .icon-button .icon {
+        width: 1.1em;
+        height: 1.1em;
+        margin: 0;
+    }
+
+    .text-button,
+    button.primary-button,
+    button.secondary-button,
+    button.danger-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+
+    .model-badge-icon {
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .model-badge-icon .icon {
+        width: 0.95em;
+        height: 0.95em;
+        margin: 0;
     }
 
     button:disabled {
@@ -15089,6 +15401,14 @@ Input notes:
     .shortcut-input[data-recording="true"] {
         background: #302608;
         color: #f0c96f;
+    }
+
+    /* Conflict state replaces the trailing ⚠ glyph that used to be appended
+       to the value with a more design-system-aware red border + tinted bg. */
+    .shortcut-input[data-conflict="true"] {
+        border-color: #da3633;
+        background: rgba(218, 54, 51, 0.08);
+        color: #da3633;
     }
 
     .shortcut-actions {
