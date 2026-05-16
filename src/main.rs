@@ -3330,17 +3330,20 @@ fn push_live_source_units(
     session: &mut LiveSessionState,
     units: Vec<String>,
     start_ms: i64,
+    duration_ms: Option<i64>,
 ) -> Vec<LiveChunkSegmentResponse> {
     let mut response_segments = Vec::new();
+    let offsets = estimate_live_unit_start_offsets(&units, duration_ms);
 
-    for unit in units {
+    for (idx, unit) in units.into_iter().enumerate() {
         let seq = session.sequence;
         session.sequence += 1;
+        let segment_start_ms = start_ms.saturating_add(offsets.get(idx).copied().unwrap_or(0));
         session.segments.push(LiveSegment {
             id: uuid::Uuid::new_v4().to_string(),
             session_id: session.id.clone(),
             sequence: seq,
-            start_ms,
+            start_ms: segment_start_ms,
             source_text: unit.clone(),
             translated_text: None,
         });
@@ -3348,18 +3351,44 @@ fn push_live_source_units(
             sequence: seq,
             source_text: unit,
             translated_text: None,
-            elapsed_ms: start_ms,
+            elapsed_ms: segment_start_ms,
         });
     }
 
     response_segments
 }
 
+fn estimate_live_unit_start_offsets(units: &[String], duration_ms: Option<i64>) -> Vec<i64> {
+    if units.is_empty() {
+        return Vec::new();
+    }
+
+    let duration_ms = duration_ms.unwrap_or(0).max(0);
+    if units.len() == 1 || duration_ms == 0 {
+        return vec![0; units.len()];
+    }
+
+    let weights = units
+        .iter()
+        .map(|unit| unit.chars().filter(|ch| !ch.is_whitespace()).count().max(1) as i64)
+        .collect::<Vec<_>>();
+    let total_weight = weights.iter().sum::<i64>().max(1);
+    let mut elapsed_weight = 0_i64;
+    let mut offsets = Vec::with_capacity(units.len());
+
+    for weight in weights {
+        offsets.push((duration_ms.saturating_mul(elapsed_weight)) / total_weight);
+        elapsed_weight = elapsed_weight.saturating_add(weight);
+    }
+
+    offsets
+}
+
 fn flush_live_pending_source(session: &mut LiveSessionState) {
     let pending = std::mem::take(&mut session.pending_source_text);
     let start_ms = session.pending_start_ms.take().unwrap_or(0);
     let (units, _) = split_live_source_units(&pending, true);
-    push_live_source_units(session, units, start_ms);
+    push_live_source_units(session, units, start_ms, None);
 }
 
 async fn live_chunk_handler(
@@ -3370,6 +3399,7 @@ async fn live_chunk_handler(
     let mut audio_extension = None;
     let mut session_id: Option<String> = None;
     let mut chunk_start_ms: Option<i64> = None;
+    let mut chunk_duration_ms: Option<i64> = None;
 
     while let Some(field) = multipart
         .next_field()
@@ -3395,6 +3425,10 @@ async fn live_chunk_handler(
             Some("chunk_start_ms") => {
                 let value = field.text().await.map_err(AppError::bad_request)?;
                 chunk_start_ms = value.trim().parse::<i64>().ok();
+            }
+            Some("chunk_duration_ms") => {
+                let value = field.text().await.map_err(AppError::bad_request)?;
+                chunk_duration_ms = value.trim().parse::<i64>().ok();
             }
             _ => {}
         }
@@ -3452,7 +3486,8 @@ async fn live_chunk_handler(
     let transcription = transcription?;
     let source_text = transcription.text.trim().to_string();
 
-    let elapsed_ms = chunk_start_ms.unwrap_or(0);
+    let elapsed_ms = chunk_start_ms.unwrap_or(0).max(0);
+    let chunk_duration_ms = chunk_duration_ms.map(|value| value.max(0));
 
     let (sequence, segments) = {
         let mut sessions = state.live_sessions.lock().await;
@@ -3463,13 +3498,24 @@ async fn live_chunk_handler(
 
         if !source_text.is_empty() {
             let pending_start_ms = session.pending_start_ms.unwrap_or(elapsed_ms);
+            let combined_duration_ms = chunk_duration_ms.map(|duration_ms| {
+                elapsed_ms
+                    .saturating_add(duration_ms)
+                    .saturating_sub(pending_start_ms)
+                    .max(0)
+            });
             let combined = if session.pending_source_text.trim().is_empty() {
                 source_text.clone()
             } else {
                 format!("{} {}", session.pending_source_text.trim(), source_text)
             };
-            let (source_units, remainder) = split_live_source_units(&combined, false);
-            response_segments = push_live_source_units(session, source_units, pending_start_ms);
+            let (source_units, remainder) = split_live_source_units(&combined, true);
+            response_segments = push_live_source_units(
+                session,
+                source_units,
+                pending_start_ms,
+                combined_duration_ms,
+            );
             session.pending_source_text = remainder;
             session.pending_start_ms = if session.pending_source_text.trim().is_empty() {
                 None

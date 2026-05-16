@@ -6912,7 +6912,7 @@ Input notes:
         const LIVE_SILENCE_CLOSE_MS = 900;
         const LIVE_UTTERANCE_PREROLL_MS = 250;
         const LIVE_UTTERANCE_TAIL_MS = 250;
-        const LIVE_MIN_UTTERANCE_MS = 700;
+        const LIVE_MIN_UTTERANCE_MS = 450;
         const LIVE_MAX_UTTERANCE_MS = 12000;
         const LIVE_TRANSLATION_IDLE_FLUSH_MS = 700;
         let liveState = null;
@@ -7960,9 +7960,11 @@ Input notes:
             const snapshot = copyLiveAudioRange(state.audioChunks, startSample, endSample);
             if (snapshot.length === 0) return;
 
+            const captionStartSample = Math.max(startSample, state.utteranceStartSample);
             state.chunkQueue.push({
                 audio: snapshot,
-                startMs: Math.round(startSample / LIVE_SAMPLE_RATE * 1000)
+                startMs: Math.round(captionStartSample / LIVE_SAMPLE_RATE * 1000),
+                durationMs: Math.round((endSample - captionStartSample) / LIVE_SAMPLE_RATE * 1000)
             });
             state.lastQueuedEndSample = endSample;
             state.utteranceStartSample = null;
@@ -8262,6 +8264,7 @@ Input notes:
                     const formData = new FormData();
                     formData.append("session_id", state.sessionId);
                     formData.append("chunk_start_ms", String(item.startMs));
+                    formData.append("chunk_duration_ms", String(item.durationMs || 0));
                     formData.append("audio", wav, "chunk.wav");
 
                     try {
