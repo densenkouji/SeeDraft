@@ -29,7 +29,7 @@ No API keys are required for SeeDraft itself. During development, model executio
 
 - Record from the microphone, capture PC playback audio, drag and drop audio files, or use press-and-hold dictation from anywhere on Windows.
 - Supported file extensions include `wav`, `mp3`, `m4a`, `mp4`, `webm`, `ogg`, `flac`, `aac`, and `opus`.
-- Choose a Whisper speech model from the Models tab. The default is `whisper-tiny`.
+- Choose a Whisper speech model from the Models tab. The default is `whisper-small`.
 - Add a transcription prompt with meeting topics, speaker names, terminology, or spelling rules.
 - Track model downloads with Server-Sent Events, including progress, failure diagnostics, variant details, and runtime compatibility.
 - Warm up the selected speech model after startup so the first transcription request avoids the model-load cost.
@@ -166,7 +166,7 @@ cargo run
 cargo run -- -s 127.0.0.1:38713
 ```
 
-On first use, the selected speech model and the default LLM (`qwen2.5-coder-0.5b`) are downloaded through Foundry Local if they are not already cached. SeeDraft uses Foundry Local's default model cache location and does not override it.
+On first use, SeeDraft checks whether at least one compatible speech model and one compatible text-processing model are already downloaded. If either category is missing, it offers to download the default model for that category (`whisper-small` for speech, `qwen2.5-coder-0.5b` for text processing). SeeDraft uses Foundry Local's default model cache location and does not override it.
 
 ### 5. Build Installers
 

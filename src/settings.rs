@@ -114,12 +114,8 @@ const PROJECT_ORGANIZATION: &str = "SeeDraft";
 const PROJECT_APPLICATION: &str = "SeeDraft";
 
 fn project_data_dir() -> Option<PathBuf> {
-    directories::ProjectDirs::from(
-        PROJECT_QUALIFIER,
-        PROJECT_ORGANIZATION,
-        PROJECT_APPLICATION,
-    )
-    .map(|dirs| dirs.data_dir().to_path_buf())
+    directories::ProjectDirs::from(PROJECT_QUALIFIER, PROJECT_ORGANIZATION, PROJECT_APPLICATION)
+        .map(|dirs| dirs.data_dir().to_path_buf())
 }
 
 pub(crate) fn storage_db_path() -> PathBuf {
@@ -291,6 +287,26 @@ const OUTDATED_DEFAULTS: &[(&str, &str)] = &[
         "requirements.modelsPrompt",
         "Prepare the required models now?\n{models}",
     ),
+    (
+        "requirements.modelsPrompt",
+        "必要なモデルをダウンロードします。\n対象: {models}\n\nよろしいですか？\nキャンセルすると SeeDraft を終了します。",
+    ),
+    (
+        "requirements.modelsPrompt",
+        "SeeDraft needs to download these required models before use:\n{models}\n\nContinue?\nIf you cancel, SeeDraft will quit.",
+    ),
+    (
+        "requirements.modelsMissing",
+        "必要なモデルが未ダウンロードです: {models}",
+    ),
+    (
+        "requirements.modelsMissing",
+        "Required models are not downloaded: {models}",
+    ),
+    ("settings.models.required", "必須"),
+    ("settings.models.required", "Required"),
+    ("model.delete.required", "必須モデルは削除できません"),
+    ("model.delete.required", "Required models cannot be deleted"),
 ];
 
 /// Copy bundled locale files into the user's data directory the first time

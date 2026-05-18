@@ -9,6 +9,8 @@
 .claude
 .codex
 .vscode
+/docs/distribution
+tauri.microsoftstore.conf.json
 
 # Logs
 *.log

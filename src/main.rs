@@ -58,7 +58,7 @@ use tauri::Manager;
 /// ephemeral port.
 const PREFERRED_PORT: u16 = 38713;
 const LOOPBACK_IP: &str = "127.0.0.1";
-const DEFAULT_SPEECH_MODEL_ALIAS: &str = "whisper-tiny";
+const DEFAULT_SPEECH_MODEL_ALIAS: &str = "whisper-small";
 const CHAT_MODEL_ALIAS: &str = "qwen2.5-coder-0.5b";
 const DEFAULT_DRAFT_PROMPT_TEMPLATE: &str = "Reconstruct the following notes into one coherent document.\n\nRules:\n- Output in the same language as the input.\n- Merge duplicate content.\n- Use appropriate Markdown headings (#, ##), paragraphs, and bullet lists for readability.\n- Do not add information that is not present in the input.\n- Respect the note order while creating a natural flow.\n- Do not output a preface, explanation, or code fence.\n- Output only the Markdown body.\n{instruction}\n\nInput notes:\n{notes}";
 const MAX_AUDIO_BYTES: usize = 200 * 1024 * 1024;
@@ -70,7 +70,7 @@ const SILENCE_ACTIVE_SAMPLE_THRESHOLD: f64 = 0.02;
 const SILENCE_ACTIVE_RATIO_THRESHOLD: f64 = 0.01;
 static FOUNDRY_NATIVE_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-fn is_required_model_alias(alias: &str) -> bool {
+fn is_default_model_alias(alias: &str) -> bool {
     alias == DEFAULT_SPEECH_MODEL_ALIAS || alias == CHAT_MODEL_ALIAS
 }
 
@@ -169,6 +169,9 @@ struct ModelInfo {
     downloaded: bool,
     loaded: bool,
     active: bool,
+    default_model: bool,
+    // Kept for older UI/locales while the product language moves from
+    // "required model" to "default model".
     required: bool,
     size_mb: Option<u64>,
     /// Whether at least one variant of this model can run on the current
@@ -213,6 +216,7 @@ struct RequiredModelInfo {
     downloaded: bool,
     loaded: bool,
     active: bool,
+    available_alias: Option<String>,
     message: Option<String>,
 }
 
@@ -1069,13 +1073,6 @@ impl VoiceToTextService {
         }
     }
 
-    fn normalize_speech_model_alias(alias: Option<String>) -> String {
-        alias
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| DEFAULT_SPEECH_MODEL_ALIAS.to_string())
-    }
-
     async fn cached_variant_status(model: &Model) -> AppResult<(bool, Option<PathBuf>)> {
         for variant in model.variants() {
             if variant.is_cached().await.map_err(AppError::internal)? {
@@ -1089,14 +1086,100 @@ impl VoiceToTextService {
         Ok(Self::cached_variant_status(model).await?.0)
     }
 
+    fn model_is_speech(alias: &str, model: &Model) -> bool {
+        let input_mod = model.input_modalities().unwrap_or("");
+        alias.to_lowercase().starts_with("whisper") || input_mod.to_lowercase().contains("audio")
+    }
+
+    async fn downloaded_compatible_model_aliases(&self, speech: bool) -> AppResult<Vec<String>> {
+        let manager = FoundryLocalManager::create(foundry_config()).map_err(AppError::internal)?;
+        let ep_list = manager.discover_eps().map_err(AppError::internal)?;
+        let registered_eps: std::collections::HashSet<String> = ep_list
+            .iter()
+            .filter(|ep| ep.is_registered)
+            .map(|ep| ep.name.clone())
+            .collect();
+        let all_models = manager
+            .catalog()
+            .get_models()
+            .await
+            .map_err(AppError::internal)?;
+
+        let mut seen = std::collections::BTreeSet::new();
+        let mut aliases = Vec::new();
+        for model in all_models.iter() {
+            let alias = model.alias().to_string();
+            if !seen.insert(alias.clone()) {
+                continue;
+            }
+            if Self::model_is_speech(&alias, model) != speech {
+                continue;
+            }
+            let (compatible, _) = Self::compute_compatibility(model, &registered_eps);
+            if !compatible {
+                continue;
+            }
+            if Self::has_cached_variant(model).await? {
+                aliases.push(alias);
+            }
+        }
+
+        let default_alias = if speech {
+            DEFAULT_SPEECH_MODEL_ALIAS
+        } else {
+            CHAT_MODEL_ALIAS
+        };
+        aliases.sort_by(|a, b| {
+            (a != default_alias)
+                .cmp(&(b != default_alias))
+                .then_with(|| a.cmp(b))
+        });
+        Ok(aliases)
+    }
+
+    async fn resolve_model_alias(
+        &self,
+        requested: Option<&str>,
+        speech: bool,
+    ) -> AppResult<String> {
+        let requested = requested.map(str::trim).filter(|value| !value.is_empty());
+        let default_alias = if speech {
+            DEFAULT_SPEECH_MODEL_ALIAS
+        } else {
+            CHAT_MODEL_ALIAS
+        };
+        let available = self.downloaded_compatible_model_aliases(speech).await?;
+
+        if let Some(alias) = requested {
+            if available.iter().any(|candidate| candidate == alias) {
+                return Ok(alias.to_string());
+            }
+            // The built-in default is a preference, not a hard requirement. If
+            // the UI still has the default selected but another usable model is
+            // already cached, prefer the cached model instead of downloading the
+            // default again.
+            if alias == default_alias {
+                if let Some(candidate) = available.first() {
+                    return Ok(candidate.clone());
+                }
+            }
+            return Ok(alias.to_string());
+        }
+
+        if let Some(candidate) = available.first() {
+            return Ok(candidate.clone());
+        }
+        Ok(default_alias.to_string())
+    }
+
     async fn warm_up_speech_model(&self, alias: Option<String>) -> AppResult<String> {
-        let alias = Self::normalize_speech_model_alias(alias);
+        let alias = self.resolve_model_alias(alias.as_deref(), true).await?;
         self.ensure_speech_model(Some(alias.clone())).await?;
         Ok(alias)
     }
 
     async fn ensure_speech_model(&self, alias: Option<String>) -> AppResult<Arc<Model>> {
-        let alias = Self::normalize_speech_model_alias(alias);
+        let alias = self.resolve_model_alias(alias.as_deref(), true).await?;
 
         let model = {
             let guard = self.speech_models.lock().await;
@@ -1267,7 +1350,7 @@ impl VoiceToTextService {
 
             let (compatible, incompatibility_reason) =
                 Self::compute_compatibility(model, &registered_eps);
-            let required = is_required_model_alias(&alias);
+            let default_model = is_default_model_alias(&alias);
 
             results.push(ModelInfo {
                 alias,
@@ -1276,7 +1359,8 @@ impl VoiceToTextService {
                 downloaded,
                 loaded: loaded_in_cache,
                 active: is_active,
-                required,
+                default_model,
+                required: false,
                 size_mb: None,
                 compatible,
                 incompatibility_reason,
@@ -1294,78 +1378,56 @@ impl VoiceToTextService {
         Ok((results, cache_dir, execution_providers))
     }
 
-    async fn required_model_requirements(&self) -> Vec<RequiredModelInfo> {
-        let cached_guard = self.speech_models.lock().await;
-        let active_guard = self.active_speech_model.lock().await;
-        let active_speech = active_guard.clone();
+    async fn startup_model_requirements(&self) -> Vec<RequiredModelInfo> {
+        let loaded_speech_aliases: std::collections::HashSet<String> =
+            self.speech_models.lock().await.keys().cloned().collect();
+        let active_speech = self.active_speech_model.lock().await.clone();
         let chat_model_guard = self.chat_model.lock().await;
         let chat_active_alias = chat_model_guard.as_ref().map(|m| m.alias().to_string());
         drop(chat_model_guard);
+        let loaded_chat_aliases: std::collections::HashSet<String> =
+            self.chat_models.lock().await.keys().cloned().collect();
 
-        let required = [
-            (
-                DEFAULT_SPEECH_MODEL_ALIAS,
-                "speech_to_text",
-                cached_guard.contains_key(DEFAULT_SPEECH_MODEL_ALIAS),
-                active_speech.as_deref() == Some(DEFAULT_SPEECH_MODEL_ALIAS),
-            ),
-            (
-                CHAT_MODEL_ALIAS,
-                "post_processing",
-                self.chat_models.lock().await.contains_key(CHAT_MODEL_ALIAS),
-                chat_active_alias.as_deref() == Some(CHAT_MODEL_ALIAS),
-            ),
-        ];
+        let speech_aliases = self.downloaded_compatible_model_aliases(true).await;
+        let chat_aliases = self.downloaded_compatible_model_aliases(false).await;
 
-        let manager = match FoundryLocalManager::create(foundry_config()) {
-            Ok(manager) => manager,
-            Err(error) => {
-                return required
-                    .into_iter()
-                    .map(|(alias, purpose, loaded, active)| RequiredModelInfo {
-                        alias: alias.to_string(),
-                        purpose: purpose.to_string(),
-                        downloaded: false,
-                        loaded,
-                        active,
-                        message: Some(error.to_string()),
-                    })
-                    .collect();
-            }
-        };
+        let speech_available = speech_aliases
+            .as_ref()
+            .ok()
+            .and_then(|aliases| aliases.first());
+        let chat_available = chat_aliases
+            .as_ref()
+            .ok()
+            .and_then(|aliases| aliases.first());
 
-        let mut out = Vec::new();
-        for (alias, purpose, loaded, active) in required {
-            match manager.catalog().get_model(alias).await {
-                Ok(model) => match Self::has_cached_variant(&model).await {
-                    Ok(downloaded) => out.push(RequiredModelInfo {
-                        alias: alias.to_string(),
-                        purpose: purpose.to_string(),
-                        downloaded,
-                        loaded,
-                        active,
-                        message: None,
-                    }),
-                    Err(error) => out.push(RequiredModelInfo {
-                        alias: alias.to_string(),
-                        purpose: purpose.to_string(),
-                        downloaded: false,
-                        loaded,
-                        active,
-                        message: Some(error.message),
-                    }),
-                },
-                Err(error) => out.push(RequiredModelInfo {
-                    alias: alias.to_string(),
-                    purpose: purpose.to_string(),
-                    downloaded: false,
-                    loaded,
-                    active,
-                    message: Some(error.to_string()),
-                }),
-            }
-        }
-        out
+        vec![
+            RequiredModelInfo {
+                alias: DEFAULT_SPEECH_MODEL_ALIAS.to_string(),
+                purpose: "speech_to_text".to_string(),
+                downloaded: speech_available.is_some(),
+                loaded: speech_available
+                    .map(|alias| loaded_speech_aliases.contains(alias))
+                    .unwrap_or(false),
+                active: speech_available
+                    .map(|alias| active_speech.as_deref() == Some(alias.as_str()))
+                    .unwrap_or(false),
+                available_alias: speech_available.cloned(),
+                message: speech_aliases.err().map(|error| error.message),
+            },
+            RequiredModelInfo {
+                alias: CHAT_MODEL_ALIAS.to_string(),
+                purpose: "post_processing".to_string(),
+                downloaded: chat_available.is_some(),
+                loaded: chat_available
+                    .map(|alias| loaded_chat_aliases.contains(alias))
+                    .unwrap_or(false),
+                active: chat_available
+                    .map(|alias| chat_active_alias.as_deref() == Some(alias.as_str()))
+                    .unwrap_or(false),
+                available_alias: chat_available.cloned(),
+                message: chat_aliases.err().map(|error| error.message),
+            },
+        ]
     }
 
     /// List every variant the catalog offers for a given alias. Useful for the
@@ -1401,12 +1463,25 @@ impl VoiceToTextService {
     }
 
     async fn delete_model_by_alias(&self, alias: &str) -> AppResult<()> {
-        if is_required_model_alias(alias) {
-            return Err(AppError::bad_request("必須モデルは削除できません"));
+        let manager = FoundryLocalManager::create(foundry_config()).map_err(AppError::internal)?;
+        let model = manager
+            .catalog()
+            .get_model(alias)
+            .await
+            .map_err(AppError::internal)?;
+        let is_speech = Self::model_is_speech(alias, &model);
+        let usable_aliases = self.downloaded_compatible_model_aliases(is_speech).await?;
+        let target_is_usable = Self::has_cached_variant(&model).await?
+            && usable_aliases.iter().any(|candidate| candidate == alias);
+        if target_is_usable && usable_aliases.len() <= 1 {
+            let message = if is_speech {
+                "最後の音声認識モデルは削除できません"
+            } else {
+                "最後のテキスト処理モデルは削除できません"
+            };
+            return Err(AppError::bad_request(message));
         }
-
-        // Refuse to remove an in-use speech model
-        if self.active_speech_model.lock().await.as_deref() == Some(alias) {
+        if is_speech && self.active_speech_model.lock().await.as_deref() == Some(alias) {
             return Err(AppError::bad_request(
                 "使用中のモデルは削除できません。別のモデルを選択してから削除してください",
             ));
@@ -1417,28 +1492,31 @@ impl VoiceToTextService {
             let mut guard = self.speech_models.lock().await;
             guard.remove(alias);
         }
+        let cached_chat_model = self.chat_models.lock().await.remove(alias);
 
         // If this is the active chat model, drop it too
-        {
+        let primary_chat_model = {
             let mut chat_guard = self.chat_model.lock().await;
             let is_current_chat = chat_guard
                 .as_ref()
                 .map(|m| m.alias() == alias)
                 .unwrap_or(false);
             if is_current_chat {
-                if let Some(model) = chat_guard.take() {
-                    let _ = model.unload().await;
-                    drop(model);
-                }
+                chat_guard.take()
+            } else {
+                None
             }
+        };
+        let mut unloaded_aliases = std::collections::HashSet::new();
+        for model in [cached_chat_model, primary_chat_model]
+            .into_iter()
+            .flatten()
+        {
+            if unloaded_aliases.insert(model.alias().to_string()) {
+                let _ = model.unload().await;
+            }
+            drop(model);
         }
-
-        let manager = FoundryLocalManager::create(foundry_config()).map_err(AppError::internal)?;
-        let model = manager
-            .catalog()
-            .get_model(alias)
-            .await
-            .map_err(AppError::internal)?;
 
         // Remove every cached variant — a single alias can own both CPU and
         // GPU variants, and we don't know which one the user downloaded.
@@ -1495,39 +1573,7 @@ impl VoiceToTextService {
     }
 
     async fn delete_speech_model(&self, alias: &str) -> AppResult<()> {
-        if is_required_model_alias(alias) {
-            return Err(AppError::bad_request("必須モデルは削除できません"));
-        }
-
-        if self.active_speech_model.lock().await.as_deref() == Some(alias) {
-            return Err(AppError::bad_request(
-                "使用中のモデルは削除できません。別のモデルを選択してから削除してください",
-            ));
-        }
-
-        {
-            let mut guard = self.speech_models.lock().await;
-            guard.remove(alias);
-        }
-
-        let manager = FoundryLocalManager::create(foundry_config()).map_err(AppError::internal)?;
-        let model = manager
-            .catalog()
-            .get_model(alias)
-            .await
-            .map_err(AppError::internal)?;
-
-        // Remove every cached variant (see delete_model_by_alias for rationale).
-        for variant in model.variants() {
-            if variant.is_cached().await.map_err(AppError::internal)? {
-                variant
-                    .remove_from_cache()
-                    .await
-                    .map_err(AppError::internal)?;
-            }
-        }
-
-        Ok(())
+        self.delete_model_by_alias(alias).await
     }
 
     async fn ensure_chat_model(&self) -> AppResult<Arc<Model>> {
@@ -1535,16 +1581,13 @@ impl VoiceToTextService {
     }
 
     /// Load (downloading if necessary) a chat-capable LLM by alias.
-    /// Passing `None` falls back to the app default (`CHAT_MODEL_ALIAS`).
+    /// Passing `None` falls back to the preferred downloaded text model, or the
+    /// app default (`CHAT_MODEL_ALIAS`) when none is available yet.
     /// Models are cached per-alias in `chat_models` so repeated post-processing
     /// with the same selection is fast, and switching models across steps works
     /// without reloading the entire backend.
     async fn ensure_chat_model_by_alias(&self, alias: Option<&str>) -> AppResult<Arc<Model>> {
-        let requested = alias
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| CHAT_MODEL_ALIAS.to_string());
+        let requested = self.resolve_model_alias(alias, false).await?;
 
         // Fast path: already cached
         if let Some(model) = self.chat_models.lock().await.get(&requested) {
@@ -2495,14 +2538,14 @@ async fn app_requirements_handler(
         sdk_runtime_ok();
     let runtime_ready = sdk_runtime_ready;
     let required_models = if sdk_runtime_ready {
-        state.voice_to_text.required_model_requirements().await
+        state.voice_to_text.startup_model_requirements().await
     } else {
         Vec::new()
     };
 
     for model in &required_models {
         if !model.downloaded {
-            missing_summary.push(format!("Model {} is not downloaded", model.alias));
+            missing_summary.push(format!("No usable {} model is downloaded", model.purpose));
         }
     }
 
@@ -2652,9 +2695,7 @@ fn normalize_theme_field(value: Option<String>) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-async fn list_themes_handler(
-    State(state): State<AppState>,
-) -> AppResult<Json<ThemeListResponse>> {
+async fn list_themes_handler(State(state): State<AppState>) -> AppResult<Json<ThemeListResponse>> {
     let themes = state.storage.list_themes()?;
     Ok(Json(ThemeListResponse { themes }))
 }

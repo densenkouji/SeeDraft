@@ -246,7 +246,7 @@
                                 <use href="#icon-microphone" />
                             </svg>
                         </span>
-                        <span class="model-badge-label" id="currentModelLabel">whisper-tiny</span>
+                        <span class="model-badge-label" id="currentModelLabel">whisper-small</span>
                     </div>
                     <label id="currentThemeBadge" class="model-badge theme-badge"
                         data-i18n-title="settings.themes.selectorTitle" title="文字起こしテーマ">
@@ -654,7 +654,7 @@
                             <button id="currentModelJumpButton" class="secondary-button" type="button"
                                 data-i18n="settings.transcription.openModels">モデル設定を開く</button>
                         </div>
-                        <input type="hidden" id="speechModel" value="whisper-tiny" />
+                        <input type="hidden" id="speechModel" value="whisper-small" />
 
                         <label class="field-label" for="transcriptionPrompt"
                             data-i18n="settings.transcription.prompt">カスタムプロンプト</label>
@@ -1403,8 +1403,8 @@
                 "error.title": "エラー",
                 "requirements.title": "実行環境の準備が必要です",
                 "requirements.runtimeMissing": "同梱された Foundry Local 実行環境を初期化できません。インストーラーを作成し直すか、SeeDraft を再インストールしてください。",
-                "requirements.modelsMissing": "必要なモデルが未ダウンロードです: {models}",
-                "requirements.modelsPrompt": "必要なモデルをダウンロードします。\n対象: {models}\n\nよろしいですか？\nキャンセルすると SeeDraft を終了します。",
+                "requirements.modelsMissing": "音声認識またはテキスト処理に使えるモデルが未ダウンロードです: {models}",
+                "requirements.modelsPrompt": "既定モデルをダウンロードします。\n対象: {models}\n\nよろしいですか？\nキャンセルすると SeeDraft を終了します。",
                 "requirements.commandCopied": "インストールコマンドをコピーしました",
                 "requirements.openModels": "モデル設定",
                 "requirements.prepareModels": "モデルを準備",
@@ -1598,7 +1598,7 @@
                 "settings.models.chatGroup": "テキスト処理 (LLM)",
                 "settings.models.chatDesc": "整形・翻訳・抽出に使用します。プロジェクト補正や後処理パイプラインの裏で動作します。",
                 "settings.models.inUse": "使用中",
-                "settings.models.required": "必須",
+                "settings.models.default": "既定",
                 "settings.models.cached": "ダウンロード済み",
                 "settings.models.notCached": "未ダウンロード",
                 "settings.models.downloading": "ダウンロード中",
@@ -1766,7 +1766,7 @@
                 "model.tooltip.downloading": "ダウンロード進行中です",
                 "model.tooltip.delete": "このモデルをキャッシュから削除",
                 "model.delete.confirm": "{alias} を削除しますか？ディスク容量が解放されます。",
-                "model.delete.required": "必須モデルは削除できません",
+                "model.delete.required": "最後の利用可能モデルは削除できません",
                 "model.delete.failed": "モデルの削除に失敗しました",
                 "model.delete.success": "モデルを削除しました",
                 "model.list.empty": "利用可能な Whisper モデルが見つかりません",
@@ -1950,8 +1950,8 @@
                 "error.title": "Error",
                 "requirements.title": "Runtime setup required",
                 "requirements.runtimeMissing": "Bundled Foundry Local runtime could not be initialized. Rebuild the installer or reinstall SeeDraft.",
-                "requirements.modelsMissing": "Required models are not downloaded: {models}",
-                "requirements.modelsPrompt": "SeeDraft needs to download these required models before first use:\n{models}\n\nContinue?\nIf you cancel, SeeDraft will quit.",
+                "requirements.modelsMissing": "No usable speech or text-processing model is downloaded: {models}",
+                "requirements.modelsPrompt": "SeeDraft will download these default models before first use:\n{models}\n\nContinue?\nIf you cancel, SeeDraft will quit.",
                 "requirements.commandCopied": "Install command copied",
                 "requirements.openModels": "Models",
                 "requirements.prepareModels": "Prepare models",
@@ -2145,7 +2145,7 @@
                 "settings.models.chatGroup": "Text processing (LLM)",
                 "settings.models.chatDesc": "Used for refinement, translation and analysis. Runs behind the scenes for post-processing.",
                 "settings.models.inUse": "In use",
-                "settings.models.required": "Required",
+                "settings.models.default": "Default",
                 "settings.models.cached": "Downloaded",
                 "settings.models.notCached": "Not downloaded",
                 "settings.models.downloading": "Downloading",
@@ -2313,7 +2313,7 @@
                 "model.tooltip.downloading": "Download in progress",
                 "model.tooltip.delete": "Remove this model from cache",
                 "model.delete.confirm": "Delete {alias}? This will free up disk space.",
-                "model.delete.required": "Required models cannot be deleted",
+                "model.delete.required": "The last usable model cannot be deleted",
                 "model.delete.failed": "Failed to delete model",
                 "model.delete.success": "Model deleted",
                 "model.list.empty": "No Whisper models available",
@@ -2638,7 +2638,7 @@
         const MAX_RECORDING_SECONDS_KEY = "seedraft_max_recording_seconds";
         const MICROPHONE_DEVICE_KEY = "seedraft_microphone_device_id";
         const INPUT_SOURCE_KEY = "seedraft_input_source";
-        const DEFAULT_SPEECH_MODEL_ALIAS = "whisper-tiny";
+        const DEFAULT_SPEECH_MODEL_ALIAS = "whisper-small";
         const DEFAULT_CHAT_MODEL_ALIAS = "qwen2.5-coder-0.5b";
         const DEFAULT_DRAFT_PROMPT_TEMPLATE = `Reconstruct the following notes into one coherent document.
 
@@ -3579,11 +3579,6 @@ Input notes:
         };
 
         const deleteModel = async (alias) => {
-            if (isRequiredModel(alias)) {
-                showErrorBanner(t("model.delete.required"));
-                return;
-            }
-
             const confirmMessage = t("model.delete.confirm", { alias });
             if (!window.confirm(confirmMessage)) return;
 
@@ -3734,8 +3729,20 @@ Input notes:
                 if (alias) aliases.add(alias);
             });
 
-            if (usesDefault) aliases.add(DEFAULT_CHAT_MODEL_ALIAS);
+            if (usesDefault) aliases.add(preferredDownloadedChatAlias());
             return aliases;
+        };
+
+        const preferredDownloadedChatAlias = () => {
+            const chatModels = (allModelsCache.models || [])
+                .filter(model =>
+                    model.category !== "speech" &&
+                    model.downloaded &&
+                    model.compatible !== false
+                );
+            return chatModels.find(model => model.alias === DEFAULT_CHAT_MODEL_ALIAS)?.alias
+                || chatModels[0]?.alias
+                || DEFAULT_CHAT_MODEL_ALIAS;
         };
 
         const isModelInUse = (model) => {
@@ -3744,22 +3751,22 @@ Input notes:
             return selectedPostProcessingModelAliases().has(model.alias);
         };
 
-        const isRequiredModel = (modelOrAlias) => {
+        const isDefaultModel = (modelOrAlias) => {
             const alias = typeof modelOrAlias === "string"
                 ? modelOrAlias
                 : modelOrAlias?.alias;
-            return modelOrAlias?.required === true
+            return modelOrAlias?.default_model === true
                 || alias === DEFAULT_SPEECH_MODEL_ALIAS
                 || alias === DEFAULT_CHAT_MODEL_ALIAS;
         };
 
         const renderModelCatalogEntry = (model, listEl, onAfterDelete) => {
             const inUse = isModelInUse(model);
-            const required = isRequiredModel(model);
+            const defaultModel = isDefaultModel(model);
             const row = document.createElement("article");
             row.className = "model-row";
             if (inUse) row.dataset.active = "true";
-            if (required) row.dataset.required = "true";
+            if (defaultModel) row.dataset.required = "true";
             if (activeDownloadAlias === model.alias) row.dataset.downloading = "true";
             if (model.compatible === false) {
                 row.dataset.incompatible = "true";
@@ -3804,12 +3811,12 @@ Input notes:
             badge.textContent = statusText;
             nameRow.append(name, badge);
 
-            if (required) {
-                const requiredBadge = document.createElement("span");
-                requiredBadge.className = "model-row-status";
-                requiredBadge.dataset.variant = "required";
-                requiredBadge.textContent = t("settings.models.required");
-                nameRow.append(requiredBadge);
+            if (defaultModel) {
+                const defaultBadge = document.createElement("span");
+                defaultBadge.className = "model-row-status";
+                defaultBadge.dataset.variant = "required";
+                defaultBadge.textContent = t("settings.models.default");
+                nameRow.append(defaultBadge);
             }
 
             if (model.compatible === false) {
@@ -3973,7 +3980,7 @@ Input notes:
             }
 
             // Secondary: delete. Only for downloaded models that are not active or mid-download.
-            if (model.downloaded && !required && !inUse && !isDownloading) {
+            if (model.downloaded && !inUse && !isDownloading) {
                 const deleteButton = document.createElement("button");
                 deleteButton.type = "button";
                 deleteButton.className = "icon-button model-row-delete";
@@ -4293,15 +4300,23 @@ Input notes:
                 const payload = await response.json();
                 speechModelStates = payload.models || [];
 
-                // Ensure current selection still exists. On a fresh or empty
-                // model cache, prefer the lightweight default even if a larger
-                // alias is still stored from a previous cache location.
+                // Ensure current selection is usable. The built-in default is
+                // only a preference; if another compatible model is already
+                // downloaded, use it instead of downloading the default.
                 if (speechModelStates.length > 0) {
                     const selected = speechModelStates.find(m => m.alias === speechModel.value);
                     const defaultModel = speechModelStates.find(m => m.alias === DEFAULT_SPEECH_MODEL_ALIAS);
-                    const anyDownloaded = speechModelStates.some(m => m.downloaded);
+                    const downloadedModels = speechModelStates.filter(m => m.downloaded);
+                    const selectedDownloaded = downloadedModels.find(m => m.alias === speechModel.value);
+                    const defaultDownloaded = downloadedModels.find(m => m.alias === DEFAULT_SPEECH_MODEL_ALIAS);
 
-                    if (!anyDownloaded && !activeDownloadAlias && defaultModel) {
+                    if (selectedDownloaded) {
+                        speechModel.value = selectedDownloaded.alias;
+                    } else if (defaultDownloaded) {
+                        speechModel.value = defaultDownloaded.alias;
+                    } else if (downloadedModels.length > 0) {
+                        speechModel.value = downloadedModels[0].alias;
+                    } else if (!activeDownloadAlias && defaultModel) {
                         speechModel.value = DEFAULT_SPEECH_MODEL_ALIAS;
                     } else if (!selected) {
                         speechModel.value = defaultModel?.alias || speechModelStates[0].alias;
@@ -7011,7 +7026,7 @@ Input notes:
 
             const defaultOpt = document.createElement("option");
             defaultOpt.value = "";
-            defaultOpt.textContent = `${DEFAULT_CHAT_MODEL_ALIAS} (${t("settings.models.useDefault")})`;
+            defaultOpt.textContent = t("settings.models.useDefault");
             liveTranslateModel.append(defaultOpt);
 
             const chatModels = (allModelsCache.models || []).filter(model => model.category !== "speech");
@@ -7372,17 +7387,20 @@ Input notes:
             renderLiveSessionsSidebar();
         };
 
+        const stripLeadingLiveTimecode = (text) =>
+            (text || "").replace(/^\s*\[(?:\d{1,2}:)?\d{1,2}:\d{2}(?:\.\d{1,3})?\]\s*/, "").trim();
+
         const liveSegmentNoteText = (segment) => {
-            const source = (segment.source_text || "").trim();
-            const translated = (segment.translated_text || "").trim();
+            const source = stripLeadingLiveTimecode(segment.source_text);
+            const translated = stripLeadingLiveTimecode(segment.translated_text);
             if (!translated) return source;
             return `${source}\n\n${t("live.translationNoteLabel")}:\n${translated}`;
         };
 
         const liveSegmentNoteTitle = (segment) => {
-            const source = (segment.source_text || "").replace(/\s+/g, " ").trim();
+            const source = stripLeadingLiveTimecode(segment.source_text).replace(/\s+/g, " ").trim();
             const preview = source ? source.slice(0, 40) : t("history.title");
-            return `[${formatElapsed(segment.start_ms || 0)}] ${preview}`;
+            return preview;
         };
 
         const createProjectFromLiveSession = async (session, triggerButton = null) => {
@@ -8886,21 +8904,22 @@ Input notes:
         // "自動判定"/"Auto" text stays aligned with the active language.
         window.addEventListener("seedraft:locale-changed", syncLanguageBadge);
 
-        // Load required model status before warming up speech. On a fresh
-        // install, ask once for all mandatory downloads and then queue them
-        // without further per-model confirmations.
+        // Load startup model status before warming up speech. On a fresh
+        // install, ask once for the default downloads needed to provide at
+        // least one speech model and one text-processing model.
         const initializeStartupModelWorkflow = async () => {
             const requirements = await refreshRequirements();
             const missingModels = missingRequiredModels(requirements);
             if (requirements && requirements.runtime_ready !== false && missingModels.length > 0) {
                 const accepted = await prepareMissingRequiredModels(requirements);
                 if (!accepted) return;
-                refreshSpeechModels();
-                refreshAllModels();
+                await refreshSpeechModels();
+                await refreshAllModels();
                 return;
             }
-            refreshSpeechModels().then(() => requestSpeechModelWarmup(speechModel.value));
-            refreshAllModels();
+            await refreshAllModels();
+            await refreshSpeechModels();
+            requestSpeechModelWarmup(speechModel.value);
         };
         initializeStartupModelWorkflow();
 
