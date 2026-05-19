@@ -10,6 +10,7 @@
 .codex
 .vscode
 /docs/distribution
+/docs/blog
 tauri.microsoftstore.conf.json
 
 # Logs
