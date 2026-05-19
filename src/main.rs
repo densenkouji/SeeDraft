@@ -5291,6 +5291,7 @@ fn main() {
             .resizable(false)
             .decorations(false)
             .transparent(true)
+            .shadow(false)
             .always_on_top(true)
             .skip_taskbar(true)
             .focusable(false)
