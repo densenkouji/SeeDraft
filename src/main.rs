@@ -1151,18 +1151,12 @@ impl VoiceToTextService {
         let available = self.downloaded_compatible_model_aliases(speech).await?;
 
         if let Some(alias) = requested {
-            if available.iter().any(|candidate| candidate == alias) {
-                return Ok(alias.to_string());
-            }
-            // The built-in default is a preference, not a hard requirement. If
-            // the UI still has the default selected but another usable model is
-            // already cached, prefer the cached model instead of downloading the
-            // default again.
-            if alias == default_alias {
-                if let Some(candidate) = available.first() {
-                    return Ok(candidate.clone());
-                }
-            }
+            // Honor an explicit request as-is — even if the alias is the
+            // built-in default and another compatible model is already cached.
+            // The caller (warm_up / ensure_speech_model) is responsible for
+            // triggering the download when the requested model isn't yet on
+            // disk. The startup-time fallback to a cached non-default model is
+            // handled in the UI before any explicit request is made.
             return Ok(alias.to_string());
         }
 

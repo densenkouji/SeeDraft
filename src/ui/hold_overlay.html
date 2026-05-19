@@ -129,6 +129,36 @@
       height: 58px;
       filter: drop-shadow(0 0 8px rgba(238, 240, 243, 0.34));
     }
+    .processing {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      height: 58px;
+      padding-left: 4px;
+    }
+    .processing span {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: rgba(238, 240, 243, 0.86);
+      box-shadow: 0 0 10px rgba(236, 238, 242, 0.55);
+      animation: process-pulse 1.05s ease-in-out infinite;
+    }
+    .processing span:nth-child(2) { animation-delay: 0.16s; }
+    .processing span:nth-child(3) { animation-delay: 0.32s; }
+    body[data-mode="processing"] canvas { display: none; }
+    body[data-mode="processing"] .processing { display: flex; }
+    body[data-mode="processing"] .panel {
+      border-color: var(--edge-strong);
+      box-shadow:
+        0 0 22px rgba(246, 247, 249, 0.24),
+        inset 0 0 30px rgba(255, 255, 255, 0.16);
+      opacity: 0.86;
+    }
+    @keyframes process-pulse {
+      0%, 80%, 100% { transform: scale(0.55); opacity: 0.35; }
+      40% { transform: scale(1); opacity: 1; }
+    }
     .corner {
       position: absolute;
       width: 18px;
@@ -164,6 +194,9 @@
       <div class="hud">
         <div class="orb" aria-hidden="true"></div>
         <canvas id="wave" width="180" height="58" aria-hidden="true"></canvas>
+        <div class="processing" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
       </div>
     </div>
   </div>
@@ -226,7 +259,13 @@
 
     window.seedraftHoldOverlayShow = (mode = "preparing") => {
       document.body.style.transition = "";
+      const wasVisible = document.body.classList.contains("is-visible");
       document.body.dataset.mode = mode;
+      if (wasVisible) {
+        // Mode change while already visible: keep the overlay on screen and
+        // just swap the inner content (e.g. recording → processing).
+        return;
+      }
       document.body.classList.remove("is-visible");
       requestAnimationFrame(() => {
         requestAnimationFrame(() => document.body.classList.add("is-visible"));
@@ -469,6 +508,7 @@
       resetRecordingState();
       releaseMicStream();
       state.processing = true;
+      window.seedraftHoldOverlayShow("processing");
 
       try {
         const rawBlob = new Blob(chunks, { type: mimeType });
@@ -479,6 +519,7 @@
         console.error("hold recording failed", error);
       } finally {
         state.processing = false;
+        hideOverlayNow();
         hideNativeOverlay();
       }
     };
@@ -527,10 +568,7 @@
         state.stopping = true;
         try { recorder.requestData?.(); } catch {}
         recorder.stop();
-        hideOverlayNow();
-      } else if (recorder) {
-        hideOverlayNow();
-      } else if (!state.starting) {
+      } else if (!recorder && !state.starting) {
         resetRecordingState();
         releaseMicStream();
         hideOverlayNow();

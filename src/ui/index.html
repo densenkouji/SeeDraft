@@ -5,6 +5,23 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title data-i18n="app.title">SeeDraft</title>
+    <style id="seedraft-preboot">
+        /* The main stylesheet is placed after </body>, so until it is parsed
+           the document renders unstyled. That makes inline-SVG icons (which
+           rely on .icon { width:1em; height:1em }) blow up to the browser
+           default ~300x150 and produces a flash of garbled layout on launch.
+           Hide the body until DOMContentLoaded and clamp SVG sizing as a
+           safety net. */
+        html { background: #0f1419; }
+        body { visibility: hidden; }
+        body.app-ready { visibility: visible; }
+        svg.icon { width: 1em; height: 1em; }
+    </style>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            document.body.classList.add("app-ready");
+        });
+    </script>
 </head>
 
 <body>
@@ -402,11 +419,19 @@
                         </div>
                         <div class="control-bar">
                             <div class="quick-toggles">
-                                <label class="quick-toggle" data-i18n-title="quick.autoSaveTooltip"
-                                    title="文字起こし完了後、自動的にノートに追加します">
-                                    <input id="quickAutoSave" type="checkbox" />
-                                    <span class="quick-toggle-text" data-i18n="quick.autoSave">ノート追加</span>
-                                </label>
+                                <span class="quick-toggle-pair">
+                                    <label class="quick-toggle" data-i18n-title="quick.autoSaveTooltip"
+                                        title="文字起こし完了後、自動的にノートに追加します">
+                                        <input id="quickAutoSave" type="checkbox" />
+                                        <span class="quick-toggle-text" data-i18n="quick.autoSave">ノート追加</span>
+                                    </label>
+                                    <select id="quickAutoSaveTarget" class="quick-toggle-select"
+                                        data-i18n-title="quick.autoSaveTargetTooltip"
+                                        title="ノートをどこに追加するか">
+                                        <option value="parent" data-i18n="quick.autoSaveTarget.parent">親ノートに追加</option>
+                                        <option value="root" data-i18n="quick.autoSaveTarget.root">常にルートに追加</option>
+                                    </select>
+                                </span>
                                 <span class="quick-toggle-group" role="group" aria-labelledby="quickPostprocessLabel">
                                     <span id="quickPostprocessLabel" class="quick-toggle-group-label"
                                         data-i18n="quick.postprocessGroup">後処理</span>
@@ -2834,6 +2859,7 @@ Input notes:
         const customStepDelete = document.getElementById("customStepDelete");
         // Quick toggles near the record button
         const quickAutoSave = document.getElementById("quickAutoSave");
+        const quickAutoSaveTarget = document.getElementById("quickAutoSaveTarget");
         const quickAutoRefine = document.getElementById("quickAutoRefine");
         const quickAutoTranslate = document.getElementById("quickAutoTranslate");
         const quickAutoAnalyze = document.getElementById("quickAutoAnalyze");
@@ -5302,6 +5328,14 @@ Input notes:
                 : null
         );
 
+        // Decide where the auto-saved note from a recording should land.
+        // "parent" follows the highlighted note (falling back to root when
+        // none is selected); "root" forces top-level regardless of selection.
+        const autoSaveParentNoteId = () => {
+            const target = quickAutoSaveTarget?.value === "root" ? "root" : "parent";
+            return target === "root" ? null : selectedGraphParentNoteId();
+        };
+
         const saveNotesSortState = () => {
             try {
                 localStorage.setItem(NOTE_SORT_PREF_KEY, JSON.stringify(notesSortState));
@@ -6857,6 +6891,19 @@ Input notes:
                     renderNotes();
                     highlightGraphNode(node.id);
                     showNoteContextMenu(id, event.clientX, event.clientY);
+                });
+                group.addEventListener("dblclick", (event) => {
+                    if (node.kind !== "note") return;
+                    if (linkMode || noteSelectionMode) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const id = node.id.replace(/^note:/, "");
+                    const note = currentNotes.find(n => n.id === id);
+                    if (!note) return;
+                    highlightedNoteId = id;
+                    highlightGraphNode(node.id);
+                    graphDetail.hidden = true;
+                    openNoteEditor(note);
                 });
 
                 rootGroup.appendChild(group);
@@ -9496,7 +9543,6 @@ Input notes:
                 });
 
                 recorder.addEventListener("stop", async () => {
-                    hideHoldRecordingOverlay();
                     const chunks = holdRecordState.chunks;
                     const stoppedRecorder = holdRecordState.recorder;
                     const mimeType = stoppedRecorder?.mimeType || "audio/webm";
@@ -9507,6 +9553,7 @@ Input notes:
                     holdRecordState.chunks = [];
                     holdRecordState.stopRequested = false;
                     holdRecordState.combo = "";
+                    showHoldRecordingOverlay("processing");
 
                     try {
                         const rawBlob = new Blob(chunks, { type: mimeType });
@@ -9524,6 +9571,7 @@ Input notes:
                         showErrorBanner((error && error.message) || t("record.failedTranscribe"));
                     } finally {
                         holdRecordState.processing = false;
+                        hideHoldRecordingOverlay();
                     }
                 });
 
@@ -9553,7 +9601,9 @@ Input notes:
             holdRecordState.stopRequested = true;
             const recorder = holdRecordState.recorder;
             if (recorder?.state === "recording") {
-                hideHoldRecordingOverlay();
+                // The "stop" listener takes over: it switches the overlay to
+                // "processing" mode while transcription runs and hides it on
+                // completion.
                 recorder.stop();
                 setStatus(t("status.processing"), "busy");
             } else if (!holdRecordState.starting) {
@@ -10140,7 +10190,7 @@ Input notes:
             const promptValue = activeTheme?.transcription_prompt || transcriptionPrompt.value;
             formData.append("transcription_prompt", promptValue || "");
             if (currentProjectId) formData.append("project_id", currentProjectId);
-            const parentNoteId = selectedGraphParentNoteId();
+            const parentNoteId = autoSaveParentNoteId();
             if (parentNoteId) formData.append("parent_id", parentNoteId);
             // Tell the backend whether to persist this transcription as
             // a note. Controlled by the quick auto-save toggle; off means
@@ -11252,6 +11302,7 @@ Input notes:
         const QUICK_TOGGLE_DEFAULTS = {
             autoSave: false, autoRefine: false, autoTranslate: false,
             autoAnalyze: false, autoCustom: false,
+            autoSaveTarget: "parent",
         };
         const loadQuickToggles = () => {
             try {
@@ -11267,7 +11318,8 @@ Input notes:
                     autoRefine: quickAutoRefine.checked,
                     autoTranslate: quickAutoTranslate.checked,
                     autoAnalyze: quickAutoAnalyze.checked,
-                    autoCustom: quickAutoCustom.checked
+                    autoCustom: quickAutoCustom.checked,
+                    autoSaveTarget: quickAutoSaveTarget?.value === "root" ? "root" : "parent"
                 }));
             } catch { }
         };
@@ -11277,17 +11329,21 @@ Input notes:
         quickAutoTranslate.checked = !!quickToggles.autoTranslate;
         quickAutoAnalyze.checked = !!quickToggles.autoAnalyze;
         quickAutoCustom.checked = !!quickToggles.autoCustom;
+        if (quickAutoSaveTarget) {
+            quickAutoSaveTarget.value = quickToggles.autoSaveTarget === "root" ? "root" : "parent";
+        }
         quickAutoSave.addEventListener("change", saveQuickToggles);
         quickAutoRefine.addEventListener("change", saveQuickToggles);
         quickAutoTranslate.addEventListener("change", saveQuickToggles);
         quickAutoAnalyze.addEventListener("change", saveQuickToggles);
         quickAutoCustom.addEventListener("change", saveQuickToggles);
+        quickAutoSaveTarget?.addEventListener("change", saveQuickToggles);
 
         resetSettingsButton?.addEventListener("click", resetSettings);
 
         // Any change to a quick-toggle state also counts as a settings change
         // and should be persisted immediately.
-        [quickAutoRefine, quickAutoTranslate, quickAutoAnalyze, quickAutoCustom, quickAutoSave]
+        [quickAutoRefine, quickAutoTranslate, quickAutoAnalyze, quickAutoCustom, quickAutoSave, quickAutoSaveTarget]
             .filter(Boolean)
             .forEach(el => el.addEventListener("change", autoSavePostprocess));
     </script>
@@ -13729,6 +13785,31 @@ Input notes:
 
     .quick-toggle-group .quick-toggle {
         padding-inline: 7px;
+    }
+
+    /* Pair the "Save to note" pill with its destination select so the
+       two read as a single unit and don't drift apart on wrap. */
+    .quick-toggle-pair {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .quick-toggle-select {
+        height: 28px;
+        padding: 2px 6px;
+        border: 1px solid var(--border-default);
+        border-radius: 8px;
+        background: var(--bg-surface-2);
+        color: var(--text-secondary);
+        font-size: 0.74rem;
+        font-weight: 600;
+        line-height: 1.2;
+        cursor: pointer;
+    }
+
+    .quick-toggle-select:hover {
+        border-color: var(--border-strong);
     }
 
     .input-source-control {
