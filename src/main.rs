@@ -161,11 +161,80 @@ struct SpeechModelsResponse {
     models: Vec<SpeechModelStatus>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ModelCategory {
+    Speech,
+    LiveSpeech,
+    Chat,
+    Embedding,
+    Vision,
+    Other,
+}
+
+impl ModelCategory {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Speech => "speech",
+            Self::LiveSpeech => "live_speech",
+            Self::Chat => "chat",
+            Self::Embedding => "embedding",
+            Self::Vision => "vision",
+            Self::Other => "other",
+        }
+    }
+
+    fn selectable_for(self) -> Vec<String> {
+        match self {
+            Self::Speech => vec!["transcription".to_string()],
+            Self::LiveSpeech => vec!["live_transcription".to_string()],
+            Self::Chat => vec!["postprocess".to_string()],
+            Self::Embedding => vec!["embedding".to_string()],
+            Self::Vision => vec!["vision".to_string()],
+            Self::Other => Vec::new(),
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ModelUse {
+    Transcription,
+    LiveTranscription,
+    Postprocess,
+    Embedding,
+    Vision,
+}
+
+impl ModelUse {
+    fn category(self) -> ModelCategory {
+        match self {
+            Self::Transcription => ModelCategory::Speech,
+            Self::LiveTranscription => ModelCategory::LiveSpeech,
+            Self::Postprocess => ModelCategory::Chat,
+            Self::Embedding => ModelCategory::Embedding,
+            Self::Vision => ModelCategory::Vision,
+        }
+    }
+
+    fn default_alias(self) -> Option<&'static str> {
+        match self {
+            Self::Transcription => Some(DEFAULT_SPEECH_MODEL_ALIAS),
+            Self::Postprocess => Some(CHAT_MODEL_ALIAS),
+            Self::LiveTranscription | Self::Embedding | Self::Vision => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 struct ModelInfo {
     alias: String,
-    category: String,    // "speech" | "chat" | "other"
+    category: String,
     description: String, // short human-readable purpose
+    input_modalities: Option<String>,
+    output_modalities: Option<String>,
+    capabilities: Option<String>,
+    task: Option<String>,
+    selectable_for: Vec<String>,
     downloaded: bool,
     loaded: bool,
     active: bool,
@@ -1086,12 +1155,67 @@ impl VoiceToTextService {
         Ok(Self::cached_variant_status(model).await?.0)
     }
 
-    fn model_is_speech(alias: &str, model: &Model) -> bool {
-        let input_mod = model.input_modalities().unwrap_or("");
-        alias.to_lowercase().starts_with("whisper") || input_mod.to_lowercase().contains("audio")
+    fn classify_model(alias: &str, model: &Model) -> ModelCategory {
+        Self::classify_model_metadata(
+            alias,
+            model.input_modalities().unwrap_or(""),
+            model.output_modalities().unwrap_or(""),
+            model.capabilities().unwrap_or(""),
+            model.info().task.as_deref().unwrap_or(""),
+        )
     }
 
-    async fn downloaded_compatible_model_aliases(&self, speech: bool) -> AppResult<Vec<String>> {
+    fn classify_model_metadata(
+        alias: &str,
+        input_mod: &str,
+        output_mod: &str,
+        capabilities: &str,
+        task: &str,
+    ) -> ModelCategory {
+        let alias = alias.to_lowercase();
+        let input_mod = input_mod.to_lowercase();
+        let output_mod = output_mod.to_lowercase();
+        let capabilities = capabilities.to_lowercase();
+        let task = task.to_lowercase();
+        let combined = format!("{alias} {input_mod} {output_mod} {capabilities} {task}");
+
+        if combined.contains("embedding") || output_mod.contains("embed") {
+            return ModelCategory::Embedding;
+        }
+        if input_mod.contains("image")
+            || combined.contains("vision")
+            || combined.contains("vl")
+            || combined.contains("visual")
+        {
+            return ModelCategory::Vision;
+        }
+        if alias.contains("nemotron-speech-streaming")
+            || (combined.contains("live")
+                && (combined.contains("transcription") || combined.contains("asr")))
+            || (combined.contains("streaming")
+                && (combined.contains("speech") || combined.contains("audio")))
+        {
+            return ModelCategory::LiveSpeech;
+        }
+        if alias.contains("whisper") || input_mod.contains("audio") {
+            return ModelCategory::Speech;
+        }
+        if (input_mod.is_empty() || input_mod.contains("text"))
+            && (output_mod.is_empty() || output_mod.contains("text"))
+        {
+            return ModelCategory::Chat;
+        }
+        ModelCategory::Other
+    }
+
+    fn model_matches_use(model: &Model, use_case: ModelUse) -> bool {
+        Self::classify_model(model.alias(), model) == use_case.category()
+    }
+
+    async fn downloaded_compatible_model_aliases(
+        &self,
+        use_case: ModelUse,
+    ) -> AppResult<Vec<String>> {
         let manager = FoundryLocalManager::create(foundry_config()).map_err(AppError::internal)?;
         let ep_list = manager.discover_eps().map_err(AppError::internal)?;
         let registered_eps: std::collections::HashSet<String> = ep_list
@@ -1112,7 +1236,7 @@ impl VoiceToTextService {
             if !seen.insert(alias.clone()) {
                 continue;
             }
-            if Self::model_is_speech(&alias, model) != speech {
+            if !Self::model_matches_use(model, use_case) {
                 continue;
             }
             let (compatible, _) = Self::compute_compatibility(model, &registered_eps);
@@ -1124,31 +1248,25 @@ impl VoiceToTextService {
             }
         }
 
-        let default_alias = if speech {
-            DEFAULT_SPEECH_MODEL_ALIAS
+        if let Some(default_alias) = use_case.default_alias() {
+            aliases.sort_by(|a, b| {
+                (a != default_alias)
+                    .cmp(&(b != default_alias))
+                    .then_with(|| a.cmp(b))
+            });
         } else {
-            CHAT_MODEL_ALIAS
-        };
-        aliases.sort_by(|a, b| {
-            (a != default_alias)
-                .cmp(&(b != default_alias))
-                .then_with(|| a.cmp(b))
-        });
+            aliases.sort();
+        }
         Ok(aliases)
     }
 
     async fn resolve_model_alias(
         &self,
         requested: Option<&str>,
-        speech: bool,
+        use_case: ModelUse,
     ) -> AppResult<String> {
         let requested = requested.map(str::trim).filter(|value| !value.is_empty());
-        let default_alias = if speech {
-            DEFAULT_SPEECH_MODEL_ALIAS
-        } else {
-            CHAT_MODEL_ALIAS
-        };
-        let available = self.downloaded_compatible_model_aliases(speech).await?;
+        let available = self.downloaded_compatible_model_aliases(use_case).await?;
 
         if let Some(alias) = requested {
             // Honor an explicit request as-is — even if the alias is the
@@ -1163,17 +1281,24 @@ impl VoiceToTextService {
         if let Some(candidate) = available.first() {
             return Ok(candidate.clone());
         }
-        Ok(default_alias.to_string())
+        use_case
+            .default_alias()
+            .map(str::to_string)
+            .ok_or_else(|| AppError::bad_request("usable model is not available"))
     }
 
     async fn warm_up_speech_model(&self, alias: Option<String>) -> AppResult<String> {
-        let alias = self.resolve_model_alias(alias.as_deref(), true).await?;
+        let alias = self
+            .resolve_model_alias(alias.as_deref(), ModelUse::Transcription)
+            .await?;
         self.ensure_speech_model(Some(alias.clone())).await?;
         Ok(alias)
     }
 
     async fn ensure_speech_model(&self, alias: Option<String>) -> AppResult<Arc<Model>> {
-        let alias = self.resolve_model_alias(alias.as_deref(), true).await?;
+        let alias = self
+            .resolve_model_alias(alias.as_deref(), ModelUse::Transcription)
+            .await?;
 
         let model = {
             let guard = self.speech_models.lock().await;
@@ -1195,6 +1320,11 @@ impl VoiceToTextService {
                 .get_model(&alias)
                 .await
                 .map_err(AppError::internal)?;
+            if !Self::model_matches_use(&model, ModelUse::Transcription) {
+                return Err(AppError::bad_request(format!(
+                    "{alias} is not a speech-to-text model"
+                )));
+            }
 
             self.download_model_with_progress(&model, &alias).await?;
 
@@ -1277,6 +1407,8 @@ impl VoiceToTextService {
         let chat_model_guard = self.chat_model.lock().await;
         let chat_active_alias = chat_model_guard.as_ref().map(|m| m.alias().to_string());
         drop(chat_model_guard);
+        let loaded_chat_aliases: std::collections::HashSet<String> =
+            self.chat_models.lock().await.keys().cloned().collect();
 
         let manager = FoundryLocalManager::create(foundry_config()).map_err(AppError::internal)?;
         let all_models = manager
@@ -1311,20 +1443,30 @@ impl VoiceToTextService {
                 continue;
             }
 
-            // Determine purpose from modalities.
-            let input_mod = model.input_modalities().unwrap_or("");
-            let output_mod = model.output_modalities().unwrap_or("");
-            let is_speech = alias.to_lowercase().starts_with("whisper")
-                || input_mod.to_lowercase().contains("audio");
-            let category = if is_speech { "speech" } else { "chat" };
+            let category = Self::classify_model(&alias, model);
+            let input_mod = model.input_modalities().map(str::to_string);
+            let output_mod = model.output_modalities().map(str::to_string);
+            let capabilities = model.capabilities().map(str::to_string);
+            let task = model.info().task.clone();
 
-            let description = describe_model_purpose(&alias, input_mod, output_mod, is_speech);
+            let description = describe_model_purpose(
+                &alias,
+                input_mod.as_deref().unwrap_or(""),
+                output_mod.as_deref().unwrap_or(""),
+                category,
+            );
 
-            let loaded_in_cache = cached_guard.contains_key(&alias);
-            let is_active = if is_speech {
+            let loaded_in_cache = match category {
+                ModelCategory::Speech => cached_guard.contains_key(&alias),
+                ModelCategory::Chat => loaded_chat_aliases.contains(&alias),
+                _ => false,
+            };
+            let is_active = if category == ModelCategory::Speech {
                 active_speech.as_deref() == Some(alias.as_str())
-            } else {
+            } else if category == ModelCategory::Chat {
                 chat_active_alias.as_deref() == Some(alias.as_str())
+            } else {
+                false
             };
             // A model alias groups multiple variants. The catalog's `cached`
             // metadata can be stale after an in-app download, so ask the runtime
@@ -1348,8 +1490,13 @@ impl VoiceToTextService {
 
             results.push(ModelInfo {
                 alias,
-                category: category.to_string(),
+                category: category.as_str().to_string(),
                 description,
+                input_modalities: input_mod,
+                output_modalities: output_mod,
+                capabilities,
+                task,
+                selectable_for: category.selectable_for(),
                 downloaded,
                 loaded: loaded_in_cache,
                 active: is_active,
@@ -1382,8 +1529,12 @@ impl VoiceToTextService {
         let loaded_chat_aliases: std::collections::HashSet<String> =
             self.chat_models.lock().await.keys().cloned().collect();
 
-        let speech_aliases = self.downloaded_compatible_model_aliases(true).await;
-        let chat_aliases = self.downloaded_compatible_model_aliases(false).await;
+        let speech_aliases = self
+            .downloaded_compatible_model_aliases(ModelUse::Transcription)
+            .await;
+        let chat_aliases = self
+            .downloaded_compatible_model_aliases(ModelUse::Postprocess)
+            .await;
 
         let speech_available = speech_aliases
             .as_ref()
@@ -1463,19 +1614,28 @@ impl VoiceToTextService {
             .get_model(alias)
             .await
             .map_err(AppError::internal)?;
-        let is_speech = Self::model_is_speech(alias, &model);
-        let usable_aliases = self.downloaded_compatible_model_aliases(is_speech).await?;
-        let target_is_usable = Self::has_cached_variant(&model).await?
-            && usable_aliases.iter().any(|candidate| candidate == alias);
-        if target_is_usable && usable_aliases.len() <= 1 {
-            let message = if is_speech {
-                "最後の音声認識モデルは削除できません"
-            } else {
-                "最後のテキスト処理モデルは削除できません"
-            };
-            return Err(AppError::bad_request(message));
+        let category = Self::classify_model(alias, &model);
+        let protected_use = match category {
+            ModelCategory::Speech => Some(ModelUse::Transcription),
+            ModelCategory::Chat => Some(ModelUse::Postprocess),
+            _ => None,
+        };
+        if let Some(use_case) = protected_use {
+            let usable_aliases = self.downloaded_compatible_model_aliases(use_case).await?;
+            let target_is_usable = Self::has_cached_variant(&model).await?
+                && usable_aliases.iter().any(|candidate| candidate == alias);
+            if target_is_usable && usable_aliases.len() <= 1 {
+                let message = if category == ModelCategory::Speech {
+                    "最後の音声認識モデルは削除できません"
+                } else {
+                    "最後のテキスト処理モデルは削除できません"
+                };
+                return Err(AppError::bad_request(message));
+            }
         }
-        if is_speech && self.active_speech_model.lock().await.as_deref() == Some(alias) {
+        if category == ModelCategory::Speech
+            && self.active_speech_model.lock().await.as_deref() == Some(alias)
+        {
             return Err(AppError::bad_request(
                 "使用中のモデルは削除できません。別のモデルを選択してから削除してください",
             ));
@@ -1543,7 +1703,7 @@ impl VoiceToTextService {
         let mut results = Vec::new();
         for model in all_models.iter() {
             let alias = model.alias().to_string();
-            if !alias.to_lowercase().starts_with("whisper") {
+            if !Self::model_matches_use(model, ModelUse::Transcription) {
                 continue;
             }
             if !seen_aliases.insert(alias.clone()) {
@@ -1581,7 +1741,9 @@ impl VoiceToTextService {
     /// with the same selection is fast, and switching models across steps works
     /// without reloading the entire backend.
     async fn ensure_chat_model_by_alias(&self, alias: Option<&str>) -> AppResult<Arc<Model>> {
-        let requested = self.resolve_model_alias(alias, false).await?;
+        let requested = self
+            .resolve_model_alias(alias, ModelUse::Postprocess)
+            .await?;
 
         // Fast path: already cached
         if let Some(model) = self.chat_models.lock().await.get(&requested) {
@@ -1594,6 +1756,11 @@ impl VoiceToTextService {
             .get_model(&requested)
             .await
             .map_err(AppError::internal)?;
+        if !Self::model_matches_use(&model, ModelUse::Postprocess) {
+            return Err(AppError::bad_request(format!(
+                "{requested} is not a text-processing model"
+            )));
+        }
 
         self.download_model_with_progress(&model, &requested)
             .await?;
@@ -4230,37 +4397,46 @@ fn describe_model_purpose(
     alias: &str,
     input_mod: &str,
     output_mod: &str,
-    is_speech: bool,
+    category: ModelCategory,
 ) -> String {
     let lower = alias.to_lowercase();
-    if is_speech {
-        if lower.contains("tiny") {
-            "models.desc.whisper.tiny"
-        } else if lower.contains("base") {
-            "models.desc.whisper.base"
-        } else if lower.contains("small") {
-            "models.desc.whisper.small"
-        } else if lower.contains("medium") {
-            "models.desc.whisper.medium"
-        } else if lower.contains("large") && lower.contains("turbo") {
-            "models.desc.whisper.largeTurbo"
-        } else if lower.contains("large") {
-            "models.desc.whisper.large"
-        } else {
-            "models.desc.whisper.generic"
+    match category {
+        ModelCategory::Speech => {
+            if lower.contains("tiny") {
+                "models.desc.whisper.tiny"
+            } else if lower.contains("base") {
+                "models.desc.whisper.base"
+            } else if lower.contains("small") {
+                "models.desc.whisper.small"
+            } else if lower.contains("medium") {
+                "models.desc.whisper.medium"
+            } else if lower.contains("large") && lower.contains("turbo") {
+                "models.desc.whisper.largeTurbo"
+            } else if lower.contains("large") {
+                "models.desc.whisper.large"
+            } else {
+                "models.desc.whisper.generic"
+            }
         }
-    } else if lower.contains("qwen") {
-        "models.desc.llm.qwen"
-    } else if lower.contains("phi") {
-        "models.desc.llm.phi"
-    } else if lower.contains("llama") {
-        "models.desc.llm.llama"
-    } else if input_mod.to_lowercase().contains("image") {
-        "models.desc.llm.image"
-    } else if output_mod.to_lowercase().contains("text") {
-        "models.desc.llm.text"
-    } else {
-        "models.desc.llm.generic"
+        ModelCategory::LiveSpeech => "models.desc.asr.live",
+        ModelCategory::Embedding => "models.desc.embedding.generic",
+        ModelCategory::Vision => "models.desc.vision.generic",
+        ModelCategory::Chat => {
+            if lower.contains("qwen") {
+                "models.desc.llm.qwen"
+            } else if lower.contains("phi") {
+                "models.desc.llm.phi"
+            } else if lower.contains("llama") {
+                "models.desc.llm.llama"
+            } else if input_mod.to_lowercase().contains("image") {
+                "models.desc.llm.image"
+            } else if output_mod.to_lowercase().contains("text") {
+                "models.desc.llm.text"
+            } else {
+                "models.desc.llm.generic"
+            }
+        }
+        ModelCategory::Other => "models.desc.other.generic",
     }
     .to_string()
 }
@@ -5362,6 +5538,60 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn classifies_foundry_v1_1_model_families() {
+        assert_eq!(
+            VoiceToTextService::classify_model_metadata(
+                "qwen3-0.6b-embedding",
+                "text",
+                "embedding",
+                "embedding",
+                "embeddings",
+            ),
+            ModelCategory::Embedding
+        );
+        assert_eq!(
+            VoiceToTextService::classify_model_metadata(
+                "qwen3.5-4b",
+                "text,image",
+                "text",
+                "reasoning,tool-calling",
+                "vision-language-chat",
+            ),
+            ModelCategory::Vision
+        );
+        assert_eq!(
+            VoiceToTextService::classify_model_metadata(
+                "nemotron-speech-streaming-en-0.6b",
+                "audio",
+                "text",
+                "live,asr",
+                "automatic-speech-recognition",
+            ),
+            ModelCategory::LiveSpeech
+        );
+        assert_eq!(
+            VoiceToTextService::classify_model_metadata(
+                "openai-whisper-large-v3-turbo-generic-cpu",
+                "",
+                "",
+                "",
+                "",
+            ),
+            ModelCategory::Speech
+        );
+        assert_eq!(
+            VoiceToTextService::classify_model_metadata(
+                "qwen2.5-coder-0.5b",
+                "text",
+                "text",
+                "tool-calling",
+                "chat-completion",
+            ),
+            ModelCategory::Chat
+        );
+    }
 
     #[test]
     fn refinement_guard_rejects_english_to_cjk() {

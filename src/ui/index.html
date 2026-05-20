@@ -950,6 +950,22 @@
                                     </svg>
                                 </span>
                                 <div>
+                                    <h3 data-i18n="settings.models.liveSpeechGroup">ライブ音声認識</h3>
+                                    <p class="models-section-desc" data-i18n="settings.models.liveSpeechDesc">
+                                        ライブ字幕でストリーミング文字起こしに使用します。</p>
+                                </div>
+                            </div>
+                            <div class="models-group-list" id="modelsLiveSpeechList"></div>
+                        </div>
+
+                        <div class="models-section">
+                            <div class="models-section-header">
+                                <span class="models-section-icon">
+                                    <svg class="icon" aria-hidden="true">
+                                        <use href="#icon-microphone" />
+                                    </svg>
+                                </span>
+                                <div>
                                     <h3 data-i18n="settings.models.speechGroup">音声認識 (Speech-to-Text)</h3>
                                     <p class="models-section-desc" data-i18n="settings.models.speechDesc">
                                         録音した音声をテキストに変換します。精度と速度のトレードオフで選択してください。</p>
@@ -972,6 +988,38 @@
                                 </div>
                             </div>
                             <div class="models-group-list" id="modelsChatList"></div>
+                        </div>
+
+                        <div class="models-section">
+                            <div class="models-section-header">
+                                <span class="models-section-icon">
+                                    <svg class="icon" aria-hidden="true">
+                                        <use href="#icon-search" />
+                                    </svg>
+                                </span>
+                                <div>
+                                    <h3 data-i18n="settings.models.embeddingGroup">Embedding</h3>
+                                    <p class="models-section-desc" data-i18n="settings.models.embeddingDesc">
+                                        将来のセマンティック検索やリンク文脈に使用します。</p>
+                                </div>
+                            </div>
+                            <div class="models-group-list" id="modelsEmbeddingList"></div>
+                        </div>
+
+                        <div class="models-section">
+                            <div class="models-section-header">
+                                <span class="models-section-icon">
+                                    <svg class="icon" aria-hidden="true">
+                                        <use href="#icon-sparkles" />
+                                    </svg>
+                                </span>
+                                <div>
+                                    <h3 data-i18n="settings.models.visionGroup">Vision / その他</h3>
+                                    <p class="models-section-desc" data-i18n="settings.models.visionDesc">
+                                        画像理解や未対応のモデルです。現在の後処理候補には含めません。</p>
+                                </div>
+                            </div>
+                            <div class="models-group-list" id="modelsVisionList"></div>
                         </div>
                     </div>
 
@@ -1392,12 +1440,16 @@
                 "models.desc.whisper.large": "最高精度。専門的な音声に",
                 "models.desc.whisper.largeTurbo": "最高精度 + 高速化。大規模素材に",
                 "models.desc.whisper.generic": "音声認識モデル",
+                "models.desc.asr.live": "ライブ字幕向けストリーミング音声認識モデル",
                 "models.desc.llm.qwen": "テキスト整形・翻訳・抽出に使用",
                 "models.desc.llm.phi": "小型LLM。整形・翻訳向け",
                 "models.desc.llm.llama": "汎用LLM",
                 "models.desc.llm.image": "画像入力対応モデル",
                 "models.desc.llm.text": "テキスト生成モデル",
                 "models.desc.llm.generic": "AI モデル",
+                "models.desc.embedding.generic": "テキストをベクトル化するモデル",
+                "models.desc.vision.generic": "画像理解に対応するモデル",
+                "models.desc.other.generic": "未分類のモデル",
                 "language.name.en": "英語",
                 "language.name.ja": "日本語",
                 "language.name.es": "スペイン語",
@@ -1620,8 +1672,14 @@
                 "settings.models.refresh": "再読込",
                 "settings.models.speechGroup": "音声認識 (Speech-to-Text)",
                 "settings.models.speechDesc": "録音した音声をテキストに変換します。精度と速度のトレードオフで選択してください。",
+                "settings.models.liveSpeechGroup": "ライブ音声認識",
+                "settings.models.liveSpeechDesc": "ライブ字幕でストリーミング文字起こしに使用します。",
                 "settings.models.chatGroup": "テキスト処理 (LLM)",
                 "settings.models.chatDesc": "整形・翻訳・抽出に使用します。プロジェクト補正や後処理パイプラインの裏で動作します。",
+                "settings.models.embeddingGroup": "Embedding",
+                "settings.models.embeddingDesc": "将来のセマンティック検索やリンク文脈に使用します。",
+                "settings.models.visionGroup": "Vision / その他",
+                "settings.models.visionDesc": "画像理解や未対応のモデルです。現在の後処理候補には含めません。",
                 "settings.models.inUse": "使用中",
                 "settings.models.default": "既定",
                 "settings.models.cached": "ダウンロード済み",
@@ -1939,12 +1997,16 @@
                 "models.desc.whisper.large": "Top accuracy. For specialized audio.",
                 "models.desc.whisper.largeTurbo": "Top accuracy + speed. For large inputs.",
                 "models.desc.whisper.generic": "Speech recognition model",
+                "models.desc.asr.live": "Streaming speech recognition model for live captions",
                 "models.desc.llm.qwen": "Used for text refinement, translation and analysis",
                 "models.desc.llm.phi": "Compact LLM. Good for refinement and translation",
                 "models.desc.llm.llama": "General-purpose LLM",
                 "models.desc.llm.image": "Image-capable model",
                 "models.desc.llm.text": "Text generation model",
                 "models.desc.llm.generic": "AI model",
+                "models.desc.embedding.generic": "Model for generating text embeddings",
+                "models.desc.vision.generic": "Vision-capable model",
+                "models.desc.other.generic": "Unclassified model",
                 "language.name.en": "English",
                 "language.name.ja": "Japanese",
                 "language.name.es": "Spanish",
@@ -2167,8 +2229,14 @@
                 "settings.models.refresh": "Refresh",
                 "settings.models.speechGroup": "Speech-to-Text",
                 "settings.models.speechDesc": "Converts recorded audio into text. Choose based on the accuracy / speed trade-off.",
+                "settings.models.liveSpeechGroup": "Live speech-to-text",
+                "settings.models.liveSpeechDesc": "Used for streaming transcription in live captions.",
                 "settings.models.chatGroup": "Text processing (LLM)",
                 "settings.models.chatDesc": "Used for refinement, translation and analysis. Runs behind the scenes for post-processing.",
+                "settings.models.embeddingGroup": "Embedding",
+                "settings.models.embeddingDesc": "Reserved for future semantic search and linked context.",
+                "settings.models.visionGroup": "Vision / Other",
+                "settings.models.visionDesc": "Image-capable or unsupported models. Not used for text post-processing.",
                 "settings.models.inUse": "In use",
                 "settings.models.default": "Default",
                 "settings.models.cached": "Downloaded",
@@ -3638,7 +3706,10 @@ Input notes:
         const modelsDownloadedCount = document.getElementById("modelsDownloadedCount");
         const modelsRefreshButton = document.getElementById("modelsRefreshButton");
         const modelsSpeechList = document.getElementById("modelsSpeechList");
+        const modelsLiveSpeechList = document.getElementById("modelsLiveSpeechList");
         const modelsChatList = document.getElementById("modelsChatList");
+        const modelsEmbeddingList = document.getElementById("modelsEmbeddingList");
+        const modelsVisionList = document.getElementById("modelsVisionList");
         const modelsEpList = document.getElementById("modelsEpList");
 
         let allModelsCache = { models: [], cache_dir: null };
@@ -3759,10 +3830,17 @@ Input notes:
             return aliases;
         };
 
+        const modelSupports = (model, useCase) =>
+            Array.isArray(model?.selectable_for) && model.selectable_for.includes(useCase);
+
+        const isPostprocessModel = (model) => modelSupports(model, "postprocess");
+        const isLiveTranscriptionModel = (model) => modelSupports(model, "live_transcription");
+        const isTranscriptionModel = (model) => modelSupports(model, "transcription");
+
         const preferredDownloadedChatAlias = () => {
             const chatModels = (allModelsCache.models || [])
                 .filter(model =>
-                    model.category !== "speech" &&
+                    isPostprocessModel(model) &&
                     model.downloaded &&
                     model.compatible !== false
                 );
@@ -3773,7 +3851,7 @@ Input notes:
 
         const isModelInUse = (model) => {
             if (model.active) return true;
-            if (model.category === "speech") return false;
+            if (!isPostprocessModel(model)) return false;
             return selectedPostProcessingModelAliases().has(model.alias);
         };
 
@@ -3888,8 +3966,9 @@ Input notes:
                 );
             };
 
-            // Primary action: "Use" (speech) / "Download" (chat) — depending on state & category
-            if (model.category === "speech") {
+            // Primary action: "Use" for normal speech models; all other
+            // categories are download-only until a feature owns them.
+            if (isTranscriptionModel(model)) {
                 if (!inUse) {
                     const useButton = document.createElement("button");
                     useButton.type = "button";
@@ -3905,7 +3984,7 @@ Input notes:
                         saveSpeechModelPreference(model.alias);
                         showToast(t("settings.models.switchedSpeech", { alias: model.alias }), "success");
                         allModelsCache.models = allModelsCache.models.map(m =>
-                            m.category === "speech" ? { ...m, active: m.alias === model.alias } : m
+                            isTranscriptionModel(m) ? { ...m, active: m.alias === model.alias } : m
                         );
                         renderModelsCatalog();
                         updateLiveModelDisplay();
@@ -3914,7 +3993,6 @@ Input notes:
                     actions.append(useButton);
                 }
             } else {
-                // Chat models: download-only; the app picks the chat model internally.
                 if (!model.downloaded && !isDownloading) {
                     const downloadButton = document.createElement("button");
                     downloadButton.type = "button";
@@ -3929,7 +4007,7 @@ Input notes:
                 }
             }
 
-            if (model.category !== "speech" && model.downloaded && !isDownloading) {
+            if (isPostprocessModel(model) && model.downloaded && !isDownloading) {
                 const testButton = document.createElement("button");
                 testButton.type = "button";
                 testButton.className = "text-button model-row-test";
@@ -4076,12 +4154,12 @@ Input notes:
                 return;
             }
             const downloadedChatModels = (allModelsCache.models || [])
-                .filter(model => model.category !== "speech" && model.downloaded);
+                .filter(model => isPostprocessModel(model) && model.downloaded);
             if (downloadedChatModels.length > 0) return;
 
             const defaultModel = (allModelsCache.models || [])
                 .find(model => model.alias === DEFAULT_CHAT_MODEL_ALIAS);
-            if (!defaultModel || defaultModel.category === "speech" || defaultModel.downloaded) return;
+            if (!defaultModel || !isPostprocessModel(defaultModel) || defaultModel.downloaded) return;
 
             defaultChatDownloadPrompted = true;
             showToast(t("settings.models.defaultChatDownloadToast", {
@@ -4199,7 +4277,7 @@ Input notes:
             selectEl.append(defaultOpt);
 
             const chatModels = (allModelsCache.models || [])
-                .filter(m => m.category !== "speech");
+                .filter(isPostprocessModel);
             chatModels.forEach(m => {
                 const opt = document.createElement("option");
                 opt.value = m.alias;
@@ -4257,29 +4335,41 @@ Input notes:
             }
 
             const models = allModelsCache.models || [];
-            const speech = models.filter(m => m.category === "speech");
-            const chat = models.filter(m => m.category !== "speech");
+            const speech = models.filter(isTranscriptionModel);
+            const liveSpeech = models.filter(isLiveTranscriptionModel);
+            const chat = models.filter(isPostprocessModel);
+            const embedding = models.filter(model => modelSupports(model, "embedding"));
+            const vision = models.filter(model =>
+                modelSupports(model, "vision") ||
+                (!isTranscriptionModel(model) &&
+                    !isLiveTranscriptionModel(model) &&
+                    !isPostprocessModel(model) &&
+                    !modelSupports(model, "embedding"))
+            );
 
             modelsSpeechList.replaceChildren();
+            modelsLiveSpeechList?.replaceChildren();
             modelsChatList.replaceChildren();
+            modelsEmbeddingList?.replaceChildren();
+            modelsVisionList?.replaceChildren();
 
-            if (speech.length === 0) {
-                const empty = document.createElement("p");
-                empty.className = "models-empty";
-                empty.textContent = t("settings.models.empty");
-                modelsSpeechList.append(empty);
-            } else {
-                speech.forEach(m => renderModelCatalogEntry(m, modelsSpeechList));
-            }
+            const renderGroup = (items, listEl) => {
+                if (!listEl) return;
+                if (items.length === 0) {
+                    const empty = document.createElement("p");
+                    empty.className = "models-empty";
+                    empty.textContent = t("settings.models.empty");
+                    listEl.append(empty);
+                } else {
+                    items.forEach(m => renderModelCatalogEntry(m, listEl));
+                }
+            };
 
-            if (chat.length === 0) {
-                const empty = document.createElement("p");
-                empty.className = "models-empty";
-                empty.textContent = t("settings.models.empty");
-                modelsChatList.append(empty);
-            } else {
-                chat.forEach(m => renderModelCatalogEntry(m, modelsChatList));
-            }
+            renderGroup(speech, modelsSpeechList);
+            renderGroup(liveSpeech, modelsLiveSpeechList);
+            renderGroup(chat, modelsChatList);
+            renderGroup(embedding, modelsEmbeddingList);
+            renderGroup(vision, modelsVisionList);
 
             const downloaded = models.filter(m => m.downloaded).length;
             modelsDownloadedCount.textContent = `${downloaded} / ${models.length}`;
@@ -4291,10 +4381,12 @@ Input notes:
                 if (!response.ok) return;
                 allModelsCache = await response.json();
                 repopulateAllPostModelSelects();
+                populateLiveSpeechModelSelect();
                 populateLiveTranslationModelSelect();
                 // Re-apply any saved per-step model preferences now that options exist
                 restorePostModelPreferences();
                 renderModelsCatalog();
+                populateLiveSpeechModelSelect();
                 populateLiveTranslationModelSelect();
                 updateLiveModelDisplay();
                 promptDefaultChatModelDownload();
@@ -7047,9 +7139,16 @@ Input notes:
             const previous = liveSpeechModel.value || getSavedLiveSpeechModel() || speechModel?.value || "";
             liveSpeechModel.replaceChildren();
 
-            const aliases = speechModelStates.length > 0
-                ? speechModelStates.map(model => model.alias)
-                : [speechModel?.value || DEFAULT_SPEECH_MODEL_ALIAS];
+            const catalogModels = allModelsCache.models || [];
+            const nativeLiveAliases = catalogModels
+                .filter(isLiveTranscriptionModel)
+                .map(model => model.alias);
+            const fallbackAliases = catalogModels.length > 0
+                ? catalogModels.filter(isTranscriptionModel).map(model => model.alias)
+                : (speechModelStates.length > 0
+                    ? speechModelStates.map(model => model.alias)
+                    : [speechModel?.value || DEFAULT_SPEECH_MODEL_ALIAS]);
+            const aliases = [...new Set([...nativeLiveAliases, ...fallbackAliases])];
             aliases
                 .filter(Boolean)
                 .forEach(alias => {
@@ -7076,7 +7175,7 @@ Input notes:
             defaultOpt.textContent = t("settings.models.useDefault");
             liveTranslateModel.append(defaultOpt);
 
-            const chatModels = (allModelsCache.models || []).filter(model => model.category !== "speech");
+            const chatModels = (allModelsCache.models || []).filter(isPostprocessModel);
             const aliases = new Set(chatModels.map(model => model.alias));
             if (previous && previous !== "" && !aliases.has(previous)) {
                 aliases.add(previous);
