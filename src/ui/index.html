@@ -990,37 +990,6 @@
                             <div class="models-group-list" id="modelsChatList"></div>
                         </div>
 
-                        <div class="models-section">
-                            <div class="models-section-header">
-                                <span class="models-section-icon">
-                                    <svg class="icon" aria-hidden="true">
-                                        <use href="#icon-search" />
-                                    </svg>
-                                </span>
-                                <div>
-                                    <h3 data-i18n="settings.models.embeddingGroup">Embedding</h3>
-                                    <p class="models-section-desc" data-i18n="settings.models.embeddingDesc">
-                                        将来のセマンティック検索やリンク文脈に使用します。</p>
-                                </div>
-                            </div>
-                            <div class="models-group-list" id="modelsEmbeddingList"></div>
-                        </div>
-
-                        <div class="models-section">
-                            <div class="models-section-header">
-                                <span class="models-section-icon">
-                                    <svg class="icon" aria-hidden="true">
-                                        <use href="#icon-sparkles" />
-                                    </svg>
-                                </span>
-                                <div>
-                                    <h3 data-i18n="settings.models.visionGroup">Vision / その他</h3>
-                                    <p class="models-section-desc" data-i18n="settings.models.visionDesc">
-                                        画像理解や未対応のモデルです。現在の後処理候補には含めません。</p>
-                                </div>
-                            </div>
-                            <div class="models-group-list" id="modelsVisionList"></div>
-                        </div>
                     </div>
 
                     <div class="settings-panel" data-panel="output" hidden>
@@ -3710,8 +3679,6 @@ Input notes:
         const modelsSpeechList = document.getElementById("modelsSpeechList");
         const modelsLiveSpeechList = document.getElementById("modelsLiveSpeechList");
         const modelsChatList = document.getElementById("modelsChatList");
-        const modelsEmbeddingList = document.getElementById("modelsEmbeddingList");
-        const modelsVisionList = document.getElementById("modelsVisionList");
         const modelsEpList = document.getElementById("modelsEpList");
 
         let allModelsCache = { models: [], cache_dir: null };
@@ -4340,20 +4307,11 @@ Input notes:
             const speech = models.filter(isTranscriptionModel);
             const liveSpeech = models.filter(isLiveTranscriptionModel);
             const chat = models.filter(isPostprocessModel);
-            const embedding = models.filter(model => modelSupports(model, "embedding"));
-            const vision = models.filter(model =>
-                modelSupports(model, "vision") ||
-                (!isTranscriptionModel(model) &&
-                    !isLiveTranscriptionModel(model) &&
-                    !isPostprocessModel(model) &&
-                    !modelSupports(model, "embedding"))
-            );
+            const visibleModels = [...speech, ...liveSpeech, ...chat];
 
             modelsSpeechList.replaceChildren();
             modelsLiveSpeechList?.replaceChildren();
             modelsChatList.replaceChildren();
-            modelsEmbeddingList?.replaceChildren();
-            modelsVisionList?.replaceChildren();
 
             const renderGroup = (items, listEl) => {
                 if (!listEl) return;
@@ -4370,11 +4328,9 @@ Input notes:
             renderGroup(speech, modelsSpeechList);
             renderGroup(liveSpeech, modelsLiveSpeechList);
             renderGroup(chat, modelsChatList);
-            renderGroup(embedding, modelsEmbeddingList);
-            renderGroup(vision, modelsVisionList);
 
-            const downloaded = models.filter(m => m.downloaded).length;
-            modelsDownloadedCount.textContent = `${downloaded} / ${models.length}`;
+            const downloaded = visibleModels.filter(m => m.downloaded).length;
+            modelsDownloadedCount.textContent = `${downloaded} / ${visibleModels.length}`;
         };
 
         const refreshAllModels = async () => {
@@ -7073,6 +7029,9 @@ Input notes:
         const LIVE_TRANSLATION_IDLE_FLUSH_MS = 700;
         const LIVE_BACKEND_NATIVE = "native_live";
         const LIVE_BACKEND_CHUNKED = "chunked";
+        const LIVE_NATIVE_AUDIO_CHUNK_MS = 160;
+        const LIVE_NATIVE_AUDIO_CHUNK_SAMPLES = Math.round(LIVE_SAMPLE_RATE * LIVE_NATIVE_AUDIO_CHUNK_MS / 1000);
+        const LIVE_PARTIAL_THROTTLE_MS = 100;
         let liveState = null;
         let liveSavedSessions = [];
 
@@ -7834,6 +7793,87 @@ Input notes:
             return row;
         };
 
+        const removeLivePartialRow = (state) => {
+            if (!state) return;
+            if (state.partialRow?.parentNode) {
+                state.partialRow.remove();
+            }
+            state.partialRow = null;
+            state.partialText = "";
+        };
+
+        const upsertLivePartialRow = (state, text, elapsedMs = 0) => {
+            if (!state || !text?.trim()) return;
+            if (liveEmptyMessage.parentNode === liveCaptions) {
+                liveCaptions.replaceChildren();
+            }
+
+            let row = state.partialRow;
+            if (!row || !row.isConnected) {
+                row = buildCaptionRow({
+                    sequence: -1,
+                    start_ms: elapsedMs,
+                    source_text: text,
+                    translated_text: null
+                });
+                row.classList.add("is-partial");
+                row.dataset.livePartial = "true";
+                state.partialRow = row;
+                liveCaptions.append(row);
+            } else {
+                const time = row.querySelector(".live-caption-time");
+                if (time) time.textContent = formatElapsed(elapsedMs || 0);
+                const body = row.querySelector(".live-caption-body");
+                if (body) {
+                    appendLiveCaptionPair(body, text, "", { fallback: true });
+                }
+            }
+
+            liveCaptions.scrollTop = liveCaptions.scrollHeight;
+            updateLiveCurrent({
+                sequence: -1,
+                start_ms: elapsedMs,
+                source_text: text,
+                translated_text: null
+            });
+        };
+
+        const clearLivePartialRenderTimer = (state) => {
+            if (state?.partialRenderTimer) {
+                clearTimeout(state.partialRenderTimer);
+                state.partialRenderTimer = null;
+            }
+            if (state) state.pendingPartialPayload = null;
+        };
+
+        const renderLivePartialPayload = (state, payload) => {
+            if (!state || !payload) return;
+            const text = (payload.text || "").trim();
+            if (!text || text === state.partialText) return;
+            state.partialText = text;
+            state.lastPartialRenderAt = Date.now();
+            upsertLivePartialRow(state, text, payload.elapsed_ms || 0);
+        };
+
+        const scheduleLivePartialRender = (state, payload) => {
+            if (!state || !payload) return;
+            state.pendingPartialPayload = payload;
+            const now = Date.now();
+            const elapsed = now - (state.lastPartialRenderAt || 0);
+            if (elapsed >= LIVE_PARTIAL_THROTTLE_MS) {
+                const next = state.pendingPartialPayload;
+                clearLivePartialRenderTimer(state);
+                renderLivePartialPayload(state, next);
+                return;
+            }
+            if (state.partialRenderTimer) return;
+            state.partialRenderTimer = setTimeout(() => {
+                const next = state.pendingPartialPayload;
+                clearLivePartialRenderTimer(state);
+                renderLivePartialPayload(state, next);
+            }, LIVE_PARTIAL_THROTTLE_MS - elapsed);
+        };
+
         const applyLiveTranslation = (sequence, translatedText, sourceText = null, translatedUnit = null) => {
             if (!translatedText) return;
             const key = String(sequence);
@@ -8444,6 +8484,7 @@ Input notes:
             if (!state?.eventSource) return;
             try { state.eventSource.close(); } catch { }
             state.eventSource = null;
+            clearLivePartialRenderTimer(state);
         };
 
         const handleLiveStreamEvent = (state, payload) => {
@@ -8455,12 +8496,9 @@ Input notes:
             if (payload.type === "partial") {
                 const text = (payload.text || "").trim();
                 if (!text) return;
-                state.partialText = text;
-                updateLiveCurrent({
-                    sequence: -1,
-                    start_ms: payload.elapsed_ms || 0,
-                    source_text: text,
-                    translated_text: null
+                scheduleLivePartialRender(state, {
+                    text,
+                    elapsed_ms: payload.elapsed_ms || 0
                 });
                 return;
             }
@@ -8468,13 +8506,14 @@ Input notes:
                 const segment = payload.segment;
                 if (!segment?.source_text) return;
                 if (state.segments.some((item) => item.sequence === segment.sequence)) return;
+                clearLivePartialRenderTimer(state);
+                removeLivePartialRow(state);
                 const normalized = {
                     sequence: segment.sequence,
                     start_ms: segment.elapsed_ms || segment.start_ms || 0,
                     source_text: segment.source_text,
                     translated_text: segment.translated_text || null
                 };
-                state.partialText = "";
                 state.segments.push(normalized);
                 appendLiveSegment(normalized);
                 appendLiveTranslationBuffer(state, normalized);
@@ -8542,10 +8581,54 @@ Input notes:
             }
         };
 
+        const takeLiveNativePendingSamples = (state, count) => {
+            const takeCount = Math.min(count, state.nativePendingSampleCount || 0);
+            const out = new Float32Array(takeCount);
+            let written = 0;
+
+            while (written < takeCount && state.nativePendingChunks.length > 0) {
+                const chunk = state.nativePendingChunks[0];
+                const remaining = takeCount - written;
+                if (chunk.length <= remaining) {
+                    out.set(chunk, written);
+                    written += chunk.length;
+                    state.nativePendingChunks.shift();
+                    state.nativePendingSampleCount -= chunk.length;
+                } else {
+                    out.set(chunk.subarray(0, remaining), written);
+                    state.nativePendingChunks[0] = chunk.subarray(remaining);
+                    written += remaining;
+                    state.nativePendingSampleCount -= remaining;
+                }
+            }
+
+            return written === takeCount ? out : out.subarray(0, written);
+        };
+
+        const flushLiveNativeAudio = (state, force = false) => {
+            if (!state || state.mode !== LIVE_BACKEND_NATIVE) return;
+            while (state.nativePendingSampleCount >= LIVE_NATIVE_AUDIO_CHUNK_SAMPLES) {
+                const chunk = takeLiveNativePendingSamples(state, LIVE_NATIVE_AUDIO_CHUNK_SAMPLES);
+                if (chunk.length > 0) {
+                    state.nativeAudioQueue.push(floatToPCM16Bytes(chunk));
+                }
+            }
+            if (force && state.nativePendingSampleCount > 0) {
+                const chunk = takeLiveNativePendingSamples(state, state.nativePendingSampleCount);
+                if (chunk.length > 0) {
+                    state.nativeAudioQueue.push(floatToPCM16Bytes(chunk));
+                }
+            }
+            if (state.nativeAudioQueue.length > 0) {
+                drainLiveNativeAudioQueue(state);
+            }
+        };
+
         const queueLiveNativeAudio = (state, samples) => {
             if (!state || state.mode !== LIVE_BACKEND_NATIVE || !samples?.length) return;
-            state.nativeAudioQueue.push(floatToPCM16Bytes(samples));
-            drainLiveNativeAudioQueue(state);
+            state.nativePendingChunks.push(samples.slice ? samples.slice() : new Float32Array(samples));
+            state.nativePendingSampleCount += samples.length;
+            flushLiveNativeAudio(state, false);
         };
 
         const drainLiveChunkQueue = async (state) => {
@@ -8757,9 +8840,15 @@ Input notes:
                     chunkSending: false,
                     nativeAudioQueue: [],
                     nativeAudioSending: false,
+                    nativePendingChunks: [],
+                    nativePendingSampleCount: 0,
                     eventSource: null,
                     nativeStopped: false,
+                    partialRow: null,
                     partialText: "",
+                    pendingPartialPayload: null,
+                    partialRenderTimer: null,
+                    lastPartialRenderAt: 0,
                     translationQueue: [],
                     translationSending: false,
                     translationBufferText: "",
@@ -8844,12 +8933,14 @@ Input notes:
                 }
             }
             if (state.mode === LIVE_BACKEND_NATIVE) {
+                flushLiveNativeAudio(state, true);
                 await waitForLiveNativeAudioQueue(state, 5000);
             } else {
                 queueLiveUtterance(state, true);
                 await waitForLiveChunkQueue(state, 5000);
             }
             clearLiveTranslationFlushTimer(state);
+            clearLivePartialRenderTimer(state);
             flushLiveTranslationBuffer(state, true);
             await waitForLiveQueues(state, 5000);
             if (liveState === state) liveState = null;
@@ -13359,6 +13450,17 @@ Input notes:
         background: var(--bg-surface-2);
         border-left: 3px solid #1f6feb;
         animation: live-fade-in 0.2s ease-out;
+    }
+
+    .live-caption-row.is-partial {
+        border-left-color: #f0c96f;
+        background: var(--bg-surface-2);
+        box-shadow: inset 0 0 0 1px rgba(240, 201, 111, 0.28);
+    }
+
+    .live-caption-row.is-partial .live-caption-source {
+        color: var(--text-primary);
+        font-style: italic;
     }
 
     @keyframes live-fade-in {

@@ -171,7 +171,7 @@ On first use, SeeDraft checks whether at least one compatible speech model and o
 ### 5. Build Installers
 
 ```powershell
-cargo tauri build
+cargo tauri buildtagaw
 ```
 
 Installer artifacts are written under `target/release/bundle/`. During the build, SeeDraft stages the required Foundry Local native binaries into `native/foundry-local/win-x64` and bundles them as the Tauri `foundry-local` resource. The staged DLLs are ignored by Git. The default bundle target is the NSIS `.exe` installer.
