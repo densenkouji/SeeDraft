@@ -489,6 +489,7 @@
     "live.discard": "Discard",
     "live.emptyHint": "Press start — speech will be captioned in real time.",
     "live.chunkHint": "Transcribes after pauses; translation follows each utterance",
+    "live.nativeHint": "Streaming transcription is active; translation follows final captions",
     "live.noSessions": "No saved sessions yet",
     "live.createProject": "Project",
     "live.createProjectFailed": "Failed to create project",

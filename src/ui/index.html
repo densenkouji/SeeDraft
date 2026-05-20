@@ -1914,6 +1914,7 @@
                 "live.discard": "破棄",
                 "live.emptyHint": "開始ボタンを押すと、話した内容がリアルタイムで字幕化されます。",
                 "live.chunkHint": "発話の区切りで文字起こしし、その後に翻訳します",
+                "live.nativeHint": "ストリーミング文字起こし中です。確定した字幕を翻訳します",
                 "live.noSessions": "保存されたセッションはありません",
                 "live.createProject": "プロジェクト化",
                 "live.createProjectFailed": "プロジェクト化に失敗しました",
@@ -2471,6 +2472,7 @@
                 "live.discard": "Discard",
                 "live.emptyHint": "Press start — speech will be captioned in real time.",
                 "live.chunkHint": "Transcribes after pauses; translation follows each utterance",
+                "live.nativeHint": "Streaming transcription is active; translation follows final captions",
                 "live.noSessions": "No saved sessions yet",
                 "live.createProject": "Project",
                 "live.createProjectFailed": "Failed to create project",
@@ -7069,6 +7071,8 @@ Input notes:
         const LIVE_MIN_UTTERANCE_MS = 450;
         const LIVE_MAX_UTTERANCE_MS = 12000;
         const LIVE_TRANSLATION_IDLE_FLUSH_MS = 700;
+        const LIVE_BACKEND_NATIVE = "native_live";
+        const LIVE_BACKEND_CHUNKED = "chunked";
         let liveState = null;
         let liveSavedSessions = [];
 
@@ -7900,6 +7904,18 @@ Input notes:
             return new Blob([buffer], { type: "audio/wav" });
         };
 
+        const floatToPCM16Bytes = (float32) => {
+            const buffer = new ArrayBuffer(float32.length * 2);
+            const view = new DataView(buffer);
+            let offset = 0;
+            for (let i = 0; i < float32.length; i++) {
+                const s = Math.max(-1, Math.min(1, float32[i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                offset += 2;
+            }
+            return buffer;
+        };
+
         const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
         const LIVE_SENTENCE_ABBREVIATIONS = new Set([
@@ -8180,6 +8196,12 @@ Input notes:
             const chunkStart = state.totalSamples;
             const chunkEnd = chunkStart + down.length;
             const rms = Math.sqrt(energy / down.length);
+            if (state.mode === LIVE_BACKEND_NATIVE) {
+                state.totalSamples += down.length;
+                queueLiveNativeAudio(state, down);
+                feedLiveAudioMeter(down);
+                return;
+            }
             state.audioChunks.push({ start: chunkStart, data: down });
             state.totalSamples += down.length;
             updateLiveUtteranceState(state, chunkStart, chunkEnd, rms);
@@ -8418,6 +8440,114 @@ Input notes:
             return out;
         };
 
+        const closeLiveEventSource = (state) => {
+            if (!state?.eventSource) return;
+            try { state.eventSource.close(); } catch { }
+            state.eventSource = null;
+        };
+
+        const handleLiveStreamEvent = (state, payload) => {
+            if (!state || (liveState !== state && !state.stopping)) return;
+            if (!payload || !payload.type) return;
+            if (payload.type === "ready") {
+                return;
+            }
+            if (payload.type === "partial") {
+                const text = (payload.text || "").trim();
+                if (!text) return;
+                state.partialText = text;
+                updateLiveCurrent({
+                    sequence: -1,
+                    start_ms: payload.elapsed_ms || 0,
+                    source_text: text,
+                    translated_text: null
+                });
+                return;
+            }
+            if (payload.type === "final") {
+                const segment = payload.segment;
+                if (!segment?.source_text) return;
+                if (state.segments.some((item) => item.sequence === segment.sequence)) return;
+                const normalized = {
+                    sequence: segment.sequence,
+                    start_ms: segment.elapsed_ms || segment.start_ms || 0,
+                    source_text: segment.source_text,
+                    translated_text: segment.translated_text || null
+                };
+                state.partialText = "";
+                state.segments.push(normalized);
+                appendLiveSegment(normalized);
+                appendLiveTranslationBuffer(state, normalized);
+                return;
+            }
+            if (payload.type === "error") {
+                console.warn("live stream error", payload.message);
+                if (!state.stopping) showErrorBanner(payload.message || t("live.startFailed"));
+                return;
+            }
+            if (payload.type === "stopped") {
+                state.nativeStopped = true;
+            }
+        };
+
+        const connectLiveEvents = (state) => {
+            if (!state || state.mode !== LIVE_BACKEND_NATIVE || state.eventSource) return;
+            const source = new EventSource(`/api/live/events?session_id=${encodeURIComponent(state.sessionId)}`);
+            state.eventSource = source;
+            source.onmessage = (event) => {
+                try {
+                    handleLiveStreamEvent(state, JSON.parse(event.data));
+                } catch (error) {
+                    console.warn("live stream event parse failed", error);
+                }
+            };
+            source.onerror = () => {
+                if (!state.stopping) {
+                    console.warn("live stream event source failed");
+                }
+            };
+        };
+
+        const drainLiveNativeAudioQueue = async (state) => {
+            if (!state || state.nativeAudioSending) return;
+            state.nativeAudioSending = true;
+            try {
+                while ((liveState === state || state.stopping) && state.nativeAudioQueue.length > 0) {
+                    const item = state.nativeAudioQueue.shift();
+                    try {
+                        const response = await fetch("/api/live/audio", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/octet-stream",
+                                "X-SeeDraft-Live-Session": state.sessionId,
+                                "X-SeeDraft-Sample-Rate": String(LIVE_SAMPLE_RATE),
+                                "X-SeeDraft-Channels": "1",
+                                "X-SeeDraft-Bits-Per-Sample": "16"
+                            },
+                            body: item
+                        });
+                        if (!response.ok) {
+                            throw new Error(await readErrorPayload(response, "live audio append failed"));
+                        }
+                    } catch (error) {
+                        console.warn("live native audio append failed", error);
+                        if (!state.stopping) showErrorBanner(error.message || t("live.startFailed"));
+                    }
+                }
+            } finally {
+                state.nativeAudioSending = false;
+                if ((liveState === state || state.stopping) && state.nativeAudioQueue.length > 0) {
+                    drainLiveNativeAudioQueue(state);
+                }
+            }
+        };
+
+        const queueLiveNativeAudio = (state, samples) => {
+            if (!state || state.mode !== LIVE_BACKEND_NATIVE || !samples?.length) return;
+            state.nativeAudioQueue.push(floatToPCM16Bytes(samples));
+            drainLiveNativeAudioQueue(state);
+        };
+
         const drainLiveChunkQueue = async (state) => {
             if (!state || state.chunkSending) return;
             state.chunkSending = true;
@@ -8478,10 +8608,20 @@ Input notes:
             while (Date.now() < deadline) {
                 const idle = !state.chunkSending &&
                     state.chunkQueue.length === 0 &&
+                    !state.nativeAudioSending &&
+                    state.nativeAudioQueue.length === 0 &&
                     !state.translationSending &&
                     state.translationQueue.length === 0 &&
                     state.pendingTranslations.size === 0;
                 if (idle) return;
+                await sleep(100);
+            }
+        };
+
+        const waitForLiveNativeAudioQueue = async (state, timeoutMs = 5000) => {
+            const deadline = Date.now() + timeoutMs;
+            while (Date.now() < deadline) {
+                if (!state.nativeAudioSending && state.nativeAudioQueue.length === 0) return;
                 await sleep(100);
             }
         };
@@ -8597,6 +8737,8 @@ Input notes:
 
                 liveState = {
                     sessionId: startJson.session_id,
+                    mode: startJson.mode || LIVE_BACKEND_CHUNKED,
+                    streaming: !!startJson.streaming,
                     inputSource: selectedLiveInputSource(),
                     audioCtx: null,
                     source: null,
@@ -8613,6 +8755,11 @@ Input notes:
                     lastSpeechSample: 0,
                     chunkQueue: [],
                     chunkSending: false,
+                    nativeAudioQueue: [],
+                    nativeAudioSending: false,
+                    eventSource: null,
+                    nativeStopped: false,
+                    partialText: "",
                     translationQueue: [],
                     translationSending: false,
                     translationBufferText: "",
@@ -8622,6 +8769,8 @@ Input notes:
                     stopping: false,
                     segments: []
                 };
+
+                connectLiveEvents(liveState);
 
                 if (liveState.inputSource === "system") {
                     await startLiveSystemAudioCapture(liveState);
@@ -8643,11 +8792,17 @@ Input notes:
                 liveRecBadge.hidden = false;
                 liveConfigRow.classList.add("is-locked");
                 liveModelRow.classList.add("is-locked");
+                if (liveHint) {
+                    liveHint.textContent = liveState.mode === LIVE_BACKEND_NATIVE
+                        ? t("live.nativeHint")
+                        : t("live.chunkHint");
+                }
                 liveCaptions.replaceChildren();
                 updateLiveCurrent(null);
             } catch (error) {
                 console.error("live start failed", error);
                 const failedState = liveState;
+                closeLiveEventSource(failedState);
                 if (failedState?.systemAudioActive) {
                     fetch("/api/system-audio/cancel", { method: "POST" }).catch(() => { });
                 }
@@ -8688,12 +8843,15 @@ Input notes:
                     console.warn("live system audio cancel failed", error);
                 }
             }
-            queueLiveUtterance(state, true);
-            await waitForLiveChunkQueue(state, 5000);
+            if (state.mode === LIVE_BACKEND_NATIVE) {
+                await waitForLiveNativeAudioQueue(state, 5000);
+            } else {
+                queueLiveUtterance(state, true);
+                await waitForLiveChunkQueue(state, 5000);
+            }
             clearLiveTranslationFlushTimer(state);
             flushLiveTranslationBuffer(state, true);
             await waitForLiveQueues(state, 5000);
-            state.stopping = false;
             if (liveState === state) liveState = null;
 
             liveRecBadge.hidden = true;
@@ -8701,12 +8859,14 @@ Input notes:
             liveConfigRow.classList.remove("is-locked");
             liveModelRow.classList.remove("is-locked");
 
-            if (state.segments.length === 0) {
+            if (state.segments.length === 0 && state.mode !== LIVE_BACKEND_NATIVE) {
                 await fetch("/api/live/stop", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ session_id: state.sessionId, save: false })
                 });
+                state.stopping = false;
+                closeLiveEventSource(state);
                 return;
             }
 
@@ -8716,6 +8876,8 @@ Input notes:
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ session_id: state.sessionId, save: false })
                 });
+                state.stopping = false;
+                closeLiveEventSource(state);
                 return;
             }
 
@@ -8739,6 +8901,9 @@ Input notes:
                         title
                     })
                 });
+                await waitForLiveQueues(state, 5000);
+                closeLiveEventSource(state);
+                state.stopping = false;
                 await refreshLiveSessions();
                 showToast(t("status.savedLiveSession"), "success");
             };
@@ -8749,6 +8914,8 @@ Input notes:
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ session_id: state.sessionId, save: false })
                 });
+                state.stopping = false;
+                closeLiveEventSource(state);
             };
             liveSaveClose.onclick = () => {
                 liveSaveModal.hidden = true;
@@ -8757,6 +8924,9 @@ Input notes:
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ session_id: state.sessionId, save: false })
+                }).finally(() => {
+                    state.stopping = false;
+                    closeLiveEventSource(state);
                 });
             };
         };

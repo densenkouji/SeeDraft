@@ -8,17 +8,18 @@ mod views;
 
 use axum::{
     Json, Router,
-    body::Body,
+    body::{Body, Bytes},
     extract::{DefaultBodyLimit, Multipart, Path as AxumPath, Query, State},
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response, Sse, sse::Event},
     routing::{delete, get, post, put},
 };
 use foundry_local_sdk::{
     ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
-    ChatCompletionRequestUserMessage, FoundryLocalConfig, FoundryLocalManager, Model,
+    ChatCompletionRequestUserMessage, FoundryLocalConfig, FoundryLocalManager,
+    LiveAudioTranscriptionSession, Model,
 };
-use futures::stream::{Stream, StreamExt};
+use futures::stream::{BoxStream, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -68,6 +69,10 @@ const SILENCE_RMS_THRESHOLD: f64 = 0.0035;
 const SILENCE_PEAK_THRESHOLD: f64 = 0.018;
 const SILENCE_ACTIVE_SAMPLE_THRESHOLD: f64 = 0.02;
 const SILENCE_ACTIVE_RATIO_THRESHOLD: f64 = 0.01;
+const LIVE_AUDIO_SAMPLE_RATE: u32 = 16_000;
+const LIVE_AUDIO_CHANNELS: u32 = 1;
+const LIVE_AUDIO_BITS_PER_SAMPLE: u32 = 16;
+const MAX_LIVE_PCM_CHUNK_BYTES: usize = 1024 * 1024;
 static FOUNDRY_NATIVE_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 fn is_default_model_alias(alias: &str) -> bool {
@@ -346,7 +351,9 @@ struct VoiceToTextService {
     chat_models: tokio::sync::Mutex<HashMap<String, Arc<Model>>>,
     eps_ready: tokio::sync::Mutex<bool>,
     speech_models: tokio::sync::Mutex<HashMap<String, Arc<Model>>>,
+    live_speech_models: tokio::sync::Mutex<HashMap<String, Arc<Model>>>,
     speech_model_load_lock: tokio::sync::Mutex<()>,
+    live_speech_model_load_lock: tokio::sync::Mutex<()>,
     active_speech_model: tokio::sync::Mutex<Option<String>>,
     /// Foundry Local reports progress per download, while the UI shows a
     /// single progress overlay. Keep model downloads sequential so progress
@@ -364,7 +371,9 @@ impl VoiceToTextService {
             chat_models: tokio::sync::Mutex::new(HashMap::new()),
             eps_ready: tokio::sync::Mutex::new(false),
             speech_models: tokio::sync::Mutex::new(HashMap::new()),
+            live_speech_models: tokio::sync::Mutex::new(HashMap::new()),
             speech_model_load_lock: tokio::sync::Mutex::new(()),
+            live_speech_model_load_lock: tokio::sync::Mutex::new(()),
             active_speech_model: tokio::sync::Mutex::new(None),
             download_lock: tokio::sync::Mutex::new(()),
             download_tx,
@@ -1007,6 +1016,17 @@ impl VoiceToTextService {
             drop(model);
         }
 
+        // All cached live speech models
+        let _live_speech_load_guard = self.live_speech_model_load_lock.lock().await;
+        let live_speech_models: Vec<Arc<Model>> = {
+            let mut guard = self.live_speech_models.lock().await;
+            guard.drain().map(|(_, model)| model).collect()
+        };
+        for model in live_speech_models {
+            let _ = model.unload().await;
+            drop(model);
+        }
+
         *self.active_speech_model.lock().await = None;
     }
 
@@ -1343,6 +1363,46 @@ impl VoiceToTextService {
         Ok(model)
     }
 
+    async fn ensure_live_speech_model(&self, alias: Option<String>) -> AppResult<Arc<Model>> {
+        let alias = self
+            .resolve_model_alias(alias.as_deref(), ModelUse::LiveTranscription)
+            .await?;
+
+        if let Some(model) = self.live_speech_models.lock().await.get(&alias) {
+            return Ok(Arc::clone(model));
+        }
+
+        let _load_guard = self.live_speech_model_load_lock.lock().await;
+        if let Some(model) = self.live_speech_models.lock().await.get(&alias) {
+            return Ok(Arc::clone(model));
+        }
+
+        let manager = self.ensure_execution_providers().await?;
+        let model = manager
+            .catalog()
+            .get_model(&alias)
+            .await
+            .map_err(AppError::internal)?;
+        if !Self::model_matches_use(&model, ModelUse::LiveTranscription) {
+            return Err(AppError::bad_request(format!(
+                "{alias} is not a live speech-to-text model"
+            )));
+        }
+
+        self.download_model_with_progress(&model, &alias).await?;
+
+        if !model.is_loaded().await.map_err(AppError::internal)? {
+            model.load().await.map_err(AppError::internal)?;
+        }
+
+        self.live_speech_models
+            .lock()
+            .await
+            .insert(alias.clone(), Arc::clone(&model));
+
+        Ok(model)
+    }
+
     /// Compute per-model compatibility by inspecting every variant's required
     /// execution provider / device type against the currently-registered EPs.
     /// A model is compatible if at least one of its variants is runnable.
@@ -1402,6 +1462,7 @@ impl VoiceToTextService {
         &self,
     ) -> AppResult<(Vec<ModelInfo>, Option<String>, Vec<ExecutionProviderInfo>)> {
         let cached_guard = self.speech_models.lock().await;
+        let cached_live_guard = self.live_speech_models.lock().await;
         let active_guard = self.active_speech_model.lock().await;
         let active_speech = active_guard.clone();
         let chat_model_guard = self.chat_model.lock().await;
@@ -1458,6 +1519,7 @@ impl VoiceToTextService {
 
             let loaded_in_cache = match category {
                 ModelCategory::Speech => cached_guard.contains_key(&alias),
+                ModelCategory::LiveSpeech => cached_live_guard.contains_key(&alias),
                 ModelCategory::Chat => loaded_chat_aliases.contains(&alias),
                 _ => false,
             };
@@ -1646,6 +1708,7 @@ impl VoiceToTextService {
             let mut guard = self.speech_models.lock().await;
             guard.remove(alias);
         }
+        let cached_live_speech_model = self.live_speech_models.lock().await.remove(alias);
         let cached_chat_model = self.chat_models.lock().await.remove(alias);
 
         // If this is the active chat model, drop it too
@@ -1669,6 +1732,10 @@ impl VoiceToTextService {
             if unloaded_aliases.insert(model.alias().to_string()) {
                 let _ = model.unload().await;
             }
+            drop(model);
+        }
+        if let Some(model) = cached_live_speech_model {
+            let _ = model.unload().await;
             drop(model);
         }
 
@@ -3335,6 +3402,37 @@ async fn clear_translations_handler(
 
 // ========== Live captioning ==========
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LiveBackendMode {
+    NativeLive,
+    Chunked,
+}
+
+impl LiveBackendMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::NativeLive => "native_live",
+            Self::Chunked => "chunked",
+        }
+    }
+}
+
+struct LiveNativeState {
+    session: Arc<LiveAudioTranscriptionSession>,
+    events_tx: tokio::sync::broadcast::Sender<LiveStreamEvent>,
+    reader_task: tokio::task::JoinHandle<()>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum LiveStreamEvent {
+    Ready { mode: String },
+    Partial { text: String, elapsed_ms: i64 },
+    Final { segment: LiveChunkSegmentResponse },
+    Error { message: String },
+    Stopped,
+}
+
 struct LiveSessionState {
     id: String,
     title: String,
@@ -3344,6 +3442,8 @@ struct LiveSessionState {
     speech_model: Option<String>,
     translate_model: Option<String>,
     translate: bool,
+    backend_mode: LiveBackendMode,
+    native: Option<LiveNativeState>,
     sequence: i64,
     segments: Vec<LiveSegment>,
     pending_source_text: String,
@@ -3364,6 +3464,126 @@ struct LiveStartRequest {
 struct LiveStartResponse {
     session_id: String,
     started_at: i64,
+    mode: String,
+    streaming: bool,
+}
+
+fn normalize_optional_live_text(value: Option<String>) -> Option<String> {
+    value
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn current_unix_millis() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+fn live_result_text(result: &foundry_local_sdk::LiveAudioTranscriptionResponse) -> String {
+    result
+        .content
+        .first()
+        .map(|part| part.text.trim().to_string())
+        .unwrap_or_default()
+}
+
+async fn start_native_live_session(
+    state: &AppState,
+    session_id: String,
+    started_at: i64,
+    source_language: Option<String>,
+    requested_alias: Option<String>,
+) -> AppResult<(LiveNativeState, String)> {
+    let model = state
+        .voice_to_text
+        .ensure_live_speech_model(requested_alias)
+        .await?;
+    let alias = model.alias().to_string();
+    let audio_client = model.create_audio_client();
+    let mut native_session = audio_client.create_live_transcription_session();
+    native_session.settings.sample_rate = LIVE_AUDIO_SAMPLE_RATE;
+    native_session.settings.channels = LIVE_AUDIO_CHANNELS;
+    native_session.settings.bits_per_sample = LIVE_AUDIO_BITS_PER_SAMPLE;
+    native_session.settings.language = source_language;
+    native_session
+        .start(None)
+        .await
+        .map_err(AppError::internal)?;
+    let mut stream = native_session
+        .get_stream()
+        .await
+        .map_err(AppError::internal)?;
+
+    let native_session = Arc::new(native_session);
+    let (events_tx, _) = tokio::sync::broadcast::channel(128);
+    let reader_tx = events_tx.clone();
+    let sessions = Arc::clone(&state.live_sessions);
+    let reader_session_id = session_id.clone();
+
+    let reader_task = tokio::spawn(async move {
+        while let Some(result) = stream.next().await {
+            match result {
+                Ok(result) => {
+                    let text = live_result_text(&result);
+                    if text.is_empty() {
+                        continue;
+                    }
+                    let elapsed_ms = result
+                        .start_time
+                        .map(|seconds| (seconds.max(0.0) * 1000.0) as i64)
+                        .unwrap_or_else(|| current_unix_millis().saturating_sub(started_at));
+
+                    if result.is_final {
+                        let segment = {
+                            let mut sessions = sessions.lock().await;
+                            let Some(session) = sessions.get_mut(&reader_session_id) else {
+                                break;
+                            };
+                            let sequence = session.sequence;
+                            session.sequence += 1;
+                            session.pending_source_text.clear();
+                            session.pending_start_ms = None;
+                            session.segments.push(LiveSegment {
+                                id: uuid::Uuid::new_v4().to_string(),
+                                session_id: session.id.clone(),
+                                sequence,
+                                start_ms: elapsed_ms,
+                                source_text: text.clone(),
+                                translated_text: None,
+                            });
+                            LiveChunkSegmentResponse {
+                                sequence,
+                                source_text: text,
+                                translated_text: None,
+                                elapsed_ms,
+                            }
+                        };
+                        let _ = reader_tx.send(LiveStreamEvent::Final { segment });
+                    } else {
+                        let _ = reader_tx.send(LiveStreamEvent::Partial { text, elapsed_ms });
+                    }
+                }
+                Err(error) => {
+                    let _ = reader_tx.send(LiveStreamEvent::Error {
+                        message: error.to_string(),
+                    });
+                    break;
+                }
+            }
+        }
+        let _ = reader_tx.send(LiveStreamEvent::Stopped);
+    });
+
+    Ok((
+        LiveNativeState {
+            session: native_session,
+            events_tx,
+            reader_task,
+        },
+        alias,
+    ))
 }
 
 async fn live_start_handler(
@@ -3371,37 +3591,69 @@ async fn live_start_handler(
     Json(request): Json<LiveStartRequest>,
 ) -> AppResult<Json<LiveStartResponse>> {
     let id = uuid::Uuid::new_v4().to_string();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0);
+    let now = current_unix_millis();
     let title = request
         .title
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "Live session".to_string());
+    let requested_source_language = normalize_optional_live_text(request.source_language);
+    let requested_target_language = normalize_optional_live_text(request.target_language);
+    let requested_speech_model = normalize_optional_live_text(request.speech_model);
+    let requested_translate_model = normalize_optional_live_text(request.translate_model);
+
+    let requested_alias_is_live = requested_speech_model
+        .as_deref()
+        .map(|alias| {
+            VoiceToTextService::classify_model_metadata(alias, "", "", "", "")
+                == ModelCategory::LiveSpeech
+        })
+        .unwrap_or(false);
+    let should_try_native = requested_alias_is_live;
+    let native = if should_try_native {
+        match start_native_live_session(
+            &state,
+            id.clone(),
+            now,
+            requested_source_language.clone(),
+            requested_speech_model.clone(),
+        )
+        .await
+        {
+            Ok((native, alias)) => Some((native, alias)),
+            Err(error) => {
+                eprintln!(
+                    "native live transcription unavailable; falling back to chunked: {error:?}"
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let (backend_mode, native_state, speech_model) = if let Some((native, alias)) = native {
+        (LiveBackendMode::NativeLive, Some(native), Some(alias))
+    } else {
+        let speech_model = if requested_alias_is_live {
+            None
+        } else {
+            requested_speech_model.clone()
+        };
+        (LiveBackendMode::Chunked, None, speech_model)
+    };
 
     let session = LiveSessionState {
         id: id.clone(),
         title,
         started_at: now,
-        source_language: request
-            .source_language
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty()),
-        target_language: request
-            .target_language
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty()),
-        speech_model: request
-            .speech_model
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty()),
-        translate_model: request
-            .translate_model
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty()),
+        source_language: requested_source_language,
+        target_language: requested_target_language,
+        speech_model,
+        translate_model: requested_translate_model,
         translate: request.translate.unwrap_or(true),
+        backend_mode,
+        native: native_state,
         sequence: 0,
         segments: Vec::new(),
         pending_source_text: String::new(),
@@ -3413,6 +3665,8 @@ async fn live_start_handler(
     Ok(Json(LiveStartResponse {
         session_id: id,
         started_at: now,
+        mode: backend_mode.as_str().to_string(),
+        streaming: backend_mode == LiveBackendMode::NativeLive,
     }))
 }
 
@@ -3425,7 +3679,7 @@ struct LiveChunkResponse {
     segments: Vec<LiveChunkSegmentResponse>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct LiveChunkSegmentResponse {
     sequence: i64,
     source_text: String,
@@ -3754,6 +4008,132 @@ async fn live_chunk_handler(
     }))
 }
 
+async fn live_audio_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> AppResult<Json<serde_json::Value>> {
+    let session_id = headers
+        .get("X-SeeDraft-Live-Session")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::bad_request("X-SeeDraft-Live-Session header is required"))?
+        .to_string();
+
+    if body.is_empty() {
+        return Ok(Json(serde_json::json!({ "accepted": false, "bytes": 0 })));
+    }
+    if body.len() > MAX_LIVE_PCM_CHUNK_BYTES {
+        return Err(AppError::bad_request("live audio chunk is too large"));
+    }
+
+    let sample_rate = headers
+        .get("X-SeeDraft-Sample-Rate")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(LIVE_AUDIO_SAMPLE_RATE);
+    let channels = headers
+        .get("X-SeeDraft-Channels")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(LIVE_AUDIO_CHANNELS);
+    let bits_per_sample = headers
+        .get("X-SeeDraft-Bits-Per-Sample")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(LIVE_AUDIO_BITS_PER_SAMPLE);
+    if sample_rate != LIVE_AUDIO_SAMPLE_RATE
+        || channels != LIVE_AUDIO_CHANNELS
+        || bits_per_sample != LIVE_AUDIO_BITS_PER_SAMPLE
+    {
+        return Err(AppError::bad_request(
+            "live audio must be PCM16 mono 16000Hz",
+        ));
+    }
+
+    let native_session = {
+        let sessions = state.live_sessions.lock().await;
+        let session = sessions
+            .get(&session_id)
+            .ok_or_else(|| AppError::bad_request("unknown session_id"))?;
+        if session.backend_mode != LiveBackendMode::NativeLive {
+            return Err(AppError::bad_request("session is not in native_live mode"));
+        }
+        session
+            .native
+            .as_ref()
+            .map(|native| Arc::clone(&native.session))
+            .ok_or_else(|| AppError::bad_request("native live session is not active"))?
+    };
+
+    native_session
+        .append(&body, None)
+        .await
+        .map_err(AppError::internal)?;
+
+    Ok(Json(
+        serde_json::json!({ "accepted": true, "bytes": body.len() }),
+    ))
+}
+
+#[derive(Deserialize)]
+struct LiveEventsQuery {
+    session_id: String,
+}
+
+async fn live_events_handler(
+    State(state): State<AppState>,
+    Query(query): Query<LiveEventsQuery>,
+) -> AppResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
+    let session_id = query.session_id.trim().to_string();
+    if session_id.is_empty() {
+        return Err(AppError::bad_request("session_id is required"));
+    }
+
+    let (mode, rx) = {
+        let sessions = state.live_sessions.lock().await;
+        let session = sessions
+            .get(&session_id)
+            .ok_or_else(|| AppError::bad_request("unknown session_id"))?;
+        let rx = session
+            .native
+            .as_ref()
+            .map(|native| native.events_tx.subscribe());
+        (session.backend_mode, rx)
+    };
+
+    let initial_event = LiveStreamEvent::Ready {
+        mode: mode.as_str().to_string(),
+    };
+    let initial = futures::stream::once(async move {
+        let data = serde_json::to_string(&initial_event).unwrap_or_else(|_| "{}".to_string());
+        Ok(Event::default().data(data))
+    });
+
+    let stream: BoxStream<'static, Result<Event, Infallible>> = match rx {
+        Some(rx) => {
+            let stream = tokio_stream::wrappers::BroadcastStream::new(rx).filter_map(|result| {
+                futures::future::ready(match result {
+                    Ok(event) => match serde_json::to_string(&event) {
+                        Ok(data) => Some(Ok(Event::default().data(data))),
+                        Err(_) => None,
+                    },
+                    Err(_) => None,
+                })
+            });
+            Box::pin(stream)
+        }
+        None => Box::pin(futures::stream::empty()),
+    };
+
+    Ok(Sse::new(initial.chain(stream)).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keep-alive"),
+    ))
+}
+
 async fn live_translate_handler(
     State(state): State<AppState>,
     Json(request): Json<LiveTranslationRequest>,
@@ -3871,10 +4251,51 @@ struct LiveStopResponse {
     session: Option<LiveSession>,
 }
 
+async fn stop_native_live_state(native: LiveNativeState) {
+    match tokio::time::timeout(Duration::from_secs(15), native.session.stop(None)).await {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => {
+            let _ = native.events_tx.send(LiveStreamEvent::Error {
+                message: error.to_string(),
+            });
+        }
+        Err(error) => {
+            let _ = native.events_tx.send(LiveStreamEvent::Error {
+                message: format!("native live stop timed out: {error}"),
+            });
+        }
+    }
+
+    match tokio::time::timeout(Duration::from_secs(5), native.reader_task).await {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => {
+            let _ = native.events_tx.send(LiveStreamEvent::Error {
+                message: format!("native live reader failed: {error}"),
+            });
+        }
+        Err(_) => {
+            let _ = native.events_tx.send(LiveStreamEvent::Error {
+                message: "native live reader timed out".to_string(),
+            });
+        }
+    }
+}
+
 async fn live_stop_handler(
     State(state): State<AppState>,
     Json(request): Json<LiveStopRequest>,
 ) -> AppResult<Json<LiveStopResponse>> {
+    let native = {
+        let mut sessions = state.live_sessions.lock().await;
+        let session = sessions
+            .get_mut(&request.session_id)
+            .ok_or_else(|| AppError::bad_request("unknown session_id"))?;
+        session.native.take()
+    };
+    if let Some(native) = native {
+        stop_native_live_state(native).await;
+    }
+
     let session = {
         let mut sessions = state.live_sessions.lock().await;
         sessions.remove(&request.session_id)
@@ -5258,6 +5679,8 @@ fn build_router(voice_to_text: Arc<VoiceToTextService>) -> Router {
         .route("/api/translations/{id}", delete(delete_translation_handler))
         .route("/api/translations/clear", post(clear_translations_handler))
         .route("/api/live/start", post(live_start_handler))
+        .route("/api/live/audio", post(live_audio_handler))
+        .route("/api/live/events", get(live_events_handler))
         .route("/api/live/chunk", post(live_chunk_handler))
         .route("/api/live/translate", post(live_translate_handler))
         .route("/api/live/stop", post(live_stop_handler))

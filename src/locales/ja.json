@@ -489,6 +489,7 @@
     "live.discard": "破棄",
     "live.emptyHint": "開始ボタンを押すと、話した内容がリアルタイムで字幕化されます。",
     "live.chunkHint": "発話の区切りで文字起こしし、その後に翻訳します",
+    "live.nativeHint": "ストリーミング文字起こし中です。確定した字幕を翻訳します",
     "live.noSessions": "保存されたセッションはありません",
     "live.createProject": "プロジェクト化",
     "live.createProjectFailed": "プロジェクト化に失敗しました",
